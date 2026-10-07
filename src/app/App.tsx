@@ -12,7 +12,14 @@ const Router = import.meta.env.VITE_ROUTER === "memory" ? MemoryRouter : HashRou
 
 function ScrollToTop() {
   const { pathname } = useLocation();
-  useEffect(() => window.scrollTo(0, 0), [pathname]);
+  useEffect(() => {
+    // Never return scrollTo's result: some embedded viewers wrap it, and React would call it as a cleanup.
+    try {
+      window.scrollTo(0, 0);
+    } catch {
+      /* scrolling is a convenience only */
+    }
+  }, [pathname]);
   return null;
 }
 
