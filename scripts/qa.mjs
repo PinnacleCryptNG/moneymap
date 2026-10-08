@@ -6,7 +6,9 @@ import { spawn } from "node:child_process";
 import { chromium } from "playwright";
 
 const PORT = 4321;
-const BASE = `http://localhost:${PORT}/#`;
+// QA_URL=https://your-app.onrender.com runs the checks against a deployed site instead of a local server.
+const REMOTE = process.env.QA_URL?.replace(/\/$/, "");
+const BASE = `${REMOTE ?? `http://localhost:${PORT}`}/#`;
 const results = [];
 let failures = 0;
 
@@ -23,15 +25,17 @@ async function portInUse() {
     return false;
   }
 }
-if (await portInUse()) {
+if (!REMOTE && (await portInUse())) {
   console.error(`Port ${PORT} is already in use — stop whatever is running there and retry.`);
   process.exit(1);
 }
 
 async function waitForServer() {
-  for (let i = 0; i < 50; i++) {
+  // A sleeping free-tier host can take up to a minute to wake.
+  const target = REMOTE ? `${REMOTE}/api/v1/health` : `http://localhost:${PORT}/`;
+  for (let i = 0; i < (REMOTE ? 600 : 50); i++) {
     try {
-      const r = await fetch(`http://localhost:${PORT}/`);
+      const r = await fetch(target);
       if (r.ok) return;
     } catch {
       /* not up yet */
@@ -42,8 +46,10 @@ async function waitForServer() {
 }
 
 // QA_SERVER=1: run against the real MoneyMap server (build with `npm run build:server-app` first).
-const SERVER_MODE = process.env.QA_SERVER === "1";
-const server = SERVER_MODE
+const SERVER_MODE = process.env.QA_SERVER === "1" || Boolean(REMOTE);
+const server = REMOTE
+  ? null
+  : SERVER_MODE
   ? spawn("node", ["--disable-warning=ExperimentalWarning", "--import", "tsx", "server/index.ts"], {
       stdio: "ignore",
       detached: true,
@@ -53,7 +59,7 @@ const server = SERVER_MODE
 // Kill the whole process group (npx spawns children) so the port is free for the next run.
 const stopServer = () => {
   try {
-    process.kill(-server.pid, "SIGTERM");
+    if (server) process.kill(-server.pid, "SIGTERM");
   } catch {
     /* already stopped */
   }
@@ -265,7 +271,7 @@ try {
   stopServer();
 }
 
-console.log(`QA mode: ${SERVER_MODE ? "MoneyMap server (API mode)" : "static preview (local mode)"}`);
+console.log(`QA mode: ${REMOTE ? `deployed site ${REMOTE}` : SERVER_MODE ? "MoneyMap server (API mode)" : "static preview (local mode)"}`);
 console.log(results.join("\n"));
 console.log(`\n${results.length - failures} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

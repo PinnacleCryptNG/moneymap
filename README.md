@@ -30,6 +30,7 @@ npm test                   # engine + API tests (vitest)
 npm run build              # local-mode build to dist/
 npm run qa                 # browser QA against dist/ (local mode)
 QA_SERVER=1 npm run qa     # browser QA against the real server (after build:server-app)
+QA_URL=https://… npm run qa  # browser QA against a deployed site
 npm run build:embed        # single-page build for embedded viewers → dist-embed/moneymap.html
 ```
 
