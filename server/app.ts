@@ -8,6 +8,8 @@ import { MODEL_VERSION, REMIND_LATER_DAYS, THRESHOLDS, WEIGHTS, runEngine, toApi
 import { simulateCohort } from "../src/services/analytics";
 import type { FeedbackType, GoalDraft, Permissions, Preferences } from "../src/types";
 import { GOAL_LIMITS } from "../src/utils/goals";
+import { DEMO_TODAY } from "../src/data/ledgers";
+import { categorise, describe } from "../src/engine/ledger";
 import { issueToken, verifyToken, type Session } from "./auth";
 import { publicProfile, redactProfile } from "./consent";
 import { PERMISSION_KEYS, type Db } from "./db";
@@ -174,7 +176,7 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
   );
 
   app.get("/api/v1/demo/customers", { schema: { tags: ["Demo & auth"], summary: "List synthetic demo customers" } }, async () =>
-    db.listCustomers().map((c) => ({ id: c.id, name: c.name, age: c.age, persona: c.persona, expected_outcome: c.expectedOutcome })),
+    db.listCustomers().map((c) => ({ id: c.id, name: c.name, age: c.age, persona: c.persona, expected_outcome: c.expectedOutcome, transactions: db.getTransactions(c.id).length })),
   );
 
   app.post("/api/v1/demo/reset", { preHandler: adminOnly, schema: { tags: ["Demo & auth"], summary: "Reset all demo data", ...secured } }, async () => {
@@ -213,6 +215,33 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
       },
     },
     async (req) => evaluate(req.session!.sub, req.query.requested_more === "true"),
+  );
+
+  app.get<{ Querystring: { limit?: string } }>(
+    "/api/v1/customer/transactions",
+    {
+      preHandler: customerOnly,
+      schema: {
+        tags: ["Customer"],
+        summary: "The customer's statement, as MoneyMap reads it",
+        description:
+          "Each line keeps the bank's raw narration plus the category and readable description MoneyMap derived from it. " +
+          "Money in needs income_patterns; money out needs account_activity.",
+        querystring: { type: "object", additionalProperties: false, properties: { limit: { type: "string", pattern: "^[0-9]{1,4}$" } } },
+        ...secured,
+      },
+    },
+    async (req) => {
+      const id = req.session!.sub;
+      const p = db.getPermissions(id);
+      const rows = db
+        .getTransactions(id)
+        .filter((t) => (t.direction === "credit" ? p.income_patterns : p.account_activity))
+        .reverse()
+        .slice(0, Number(req.query.limit ?? 100))
+        .map((t) => ({ ...t, category: categorise(t), description: describe(t) }));
+      return { as_of: DEMO_TODAY, count: rows.length, transactions: rows };
+    },
   );
 
   app.get(

@@ -188,6 +188,39 @@ describe("PRD entities", () => {
   });
 });
 
+describe("transactions (step 2)", () => {
+  it("serves the statement with raw narration, category and readable description", async () => {
+    const h = await session("CUST_DANIEL");
+    const r = (await app.inject({ method: "GET", url: "/api/v1/customer/transactions?limit=500", headers: h })).json();
+    expect(r.count).toBeGreaterThan(100);
+    const allowance = r.transactions.find((t: { narration: string }) => /ALLOWANCE/.test(t.narration));
+    expect(allowance).toMatchObject({ direction: "credit", category: "allowance" });
+    expect(r.transactions.some((t: { category: string }) => t.category === "education")).toBe(true);
+  });
+
+  it("hides money-out lines when account activity isn't shared", async () => {
+    const h = await session("CUST_SARAH");
+    await app.inject({ method: "POST", url: "/api/v1/consent", headers: h, payload: { account_activity: false } });
+    const r = (await app.inject({ method: "GET", url: "/api/v1/customer/transactions", headers: h })).json();
+    expect(r.transactions.every((t: { direction: string }) => t.direction === "credit")).toBe(true);
+  });
+
+  it("derives figures from the stored rows: new transactions change the answer", async () => {
+    const h = await session("CUST_SARAH");
+    const before = (await app.inject({ method: "GET", url: "/api/v1/customer/signals", headers: h })).json();
+    expect(before.financial_profile.surplus_avg).toBe(170000);
+    for (const m of ["04", "05", "06", "07", "08", "09"]) {
+      db.raw
+        .prepare("INSERT INTO transactions (id, customer_id, date, narration, amount, direction, channel) VALUES (?, 'CUST_SARAH', ?, 'NIP TRF TO NEW LANDLORD/RENT TOP UP', 160000, 'debit', 'transfer')")
+        .run(`TEST-${m}`, `2026-${m}-26`);
+    }
+    const after = (await app.inject({ method: "GET", url: "/api/v1/customer/signals", headers: h })).json();
+    expect(after.financial_profile.surplus_avg).toBe(10000);
+    expect(after.signals.some((x: { signal: string }) => x.signal === "regular_surplus")).toBe(false);
+    db.raw.prepare("DELETE FROM transactions WHERE id LIKE 'TEST-%'").run();
+  });
+});
+
 describe("products and governance", () => {
   it("records a product request without opening anything", async () => {
     const h = await session("CUST_SARAH");

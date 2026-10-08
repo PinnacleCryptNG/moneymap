@@ -4,13 +4,17 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { CUSTOMERS } from "../src/data/customers";
+import { PERSONA_BASES } from "../src/data/customers";
+import { buildLedger, DEMO_TODAY } from "../src/data/ledgers";
+import { deriveProfile } from "../src/engine/ledger";
 import { DEFAULT_PREFERENCES } from "../src/data/defaults";
 import { SEED_PRODUCTS } from "../src/data/products";
 import type {
   Application,
   ConsentRecord,
   CustomerProfile,
+  PersonaBase,
+  RawTransaction,
   FeedbackType,
   FinancialGoal,
   GoalDraft,
@@ -36,6 +40,16 @@ CREATE TABLE IF NOT EXISTS customers (
   profile_json TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS transactions (
+  id TEXT PRIMARY KEY,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  date TEXT NOT NULL,
+  narration TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  direction TEXT NOT NULL CHECK (direction IN ('credit', 'debit')),
+  channel TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS transactions_customer ON transactions(customer_id, date);
 CREATE TABLE IF NOT EXISTS consents (
   customer_id TEXT NOT NULL REFERENCES customers(id),
   permission TEXT NOT NULL,
@@ -317,8 +331,22 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
   function seed() {
     tx(() => {
       const t = now();
-      for (const c of CUSTOMERS) {
-        db.prepare("INSERT OR IGNORE INTO customers (id, profile_json, created_at) VALUES (?, ?, ?)").run(c.id, JSON.stringify(c), t);
+      for (const c of PERSONA_BASES) {
+        // Customers hold identity and KYC basics only; every financial figure is derived from their transactions.
+        const fresh = db.prepare("INSERT OR IGNORE INTO customers (id, profile_json, created_at) VALUES (?, ?, ?)").run(c.id, JSON.stringify(c), t);
+        if (fresh.changes) {
+          for (const tr of buildLedger(c.id)) {
+            db.prepare("INSERT INTO transactions (id, customer_id, date, narration, amount, direction, channel) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+              tr.id,
+              c.id,
+              tr.date,
+              tr.narration,
+              tr.amount,
+              tr.direction,
+              tr.channel,
+            );
+          }
+        }
         for (const p of PERMISSION_KEYS) {
           db.prepare("INSERT OR IGNORE INTO consents (customer_id, permission, granted, updated_at) VALUES (?, ?, 0, ?)").run(c.id, p, t);
         }
@@ -353,7 +381,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
         }
       }
     });
-    if (!(db.prepare("SELECT 1 FROM audit_log LIMIT 1").get())) audit("system", "system.seeded", `${CUSTOMERS.length} customers, ${SEED_PRODUCTS.length} products.`);
+    if (!(db.prepare("SELECT 1 FROM audit_log LIMIT 1").get())) audit("system", "system.seeded", `${PERSONA_BASES.length} customers, ${SEED_PRODUCTS.length} products.`);
   }
 
   /** Clear one customer's activity (Demo Mode) or everything. */
@@ -376,7 +404,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
 
   function resetAll() {
     tx(() => {
-      for (const t of ["recommendation_feedback", "recommendation_reasons", "product_interactions", "transaction_signals", "financial_profiles", "product_eligibility", "model_versions", "recommendations", "applications", "goals", "consent_events", "consents", "preferences", "product_versions", "products", "customers", "audit_log"]) {
+      for (const t of ["recommendation_feedback", "recommendation_reasons", "product_interactions", "transaction_signals", "financial_profiles", "product_eligibility", "model_versions", "recommendations", "applications", "transactions", "goals", "consent_events", "consents", "preferences", "product_versions", "products", "customers", "audit_log"]) {
         db.exec(`DELETE FROM ${t}`);
       }
     });
@@ -384,12 +412,22 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
   }
 
   // ---- Customers ----
-  function getCustomer(customerId: string): CustomerProfile | null {
-    const row = db.prepare("SELECT profile_json FROM customers WHERE id = ?").get(customerId) as { profile_json: string } | undefined;
-    return row ? (JSON.parse(row.profile_json) as CustomerProfile) : null;
+  function getTransactions(customerId: string): RawTransaction[] {
+    return db.prepare("SELECT id, date, narration, amount, direction, channel FROM transactions WHERE customer_id = ? ORDER BY date, id").all(customerId) as unknown as RawTransaction[];
   }
 
-  function listCustomers(): CustomerProfile[] {
+  function getPersonaBase(customerId: string): PersonaBase | null {
+    const row = db.prepare("SELECT profile_json FROM customers WHERE id = ?").get(customerId) as { profile_json: string } | undefined;
+    return row ? (JSON.parse(row.profile_json) as PersonaBase) : null;
+  }
+
+  /** The customer's profile, read from their stored transactions. */
+  function getCustomer(customerId: string): CustomerProfile | null {
+    const base = getPersonaBase(customerId);
+    return base ? deriveProfile(base, getTransactions(customerId), { today: DEMO_TODAY, openingBalance: base.openingBalance }) : null;
+  }
+
+  function listCustomers(): PersonaBase[] {
     return (db.prepare("SELECT profile_json FROM customers ORDER BY id").all() as { profile_json: string }[]).map((r) => JSON.parse(r.profile_json));
   }
 
@@ -739,6 +777,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
   seed();
 
   return {
+    getTransactions,
     recordInteraction,
     interactionCounts,
     feedbackHistory,

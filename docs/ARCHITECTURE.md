@@ -14,14 +14,28 @@ MoneyMap is a decision layer that sits beside Zenith's existing systems. It does
  │ metrics · catalogue · audit │ admin  │                  │                           │
  └─────────────────────────────┘ token  │                  ▼                           │
                                         │  SQLite (Postgres-ready schema)              │
-                                        │  customers · consents · consent_events ·     │
-                                        │  goals · preferences · products ·            │
-                                        │  product_versions · recommendations ·        │
-                                        │  applications · audit_log (hash-chained)     │
+                                        │  customers · transactions · consents ·       │
+                                        │  consent_events · goals · preferences ·      │
+                                        │  products · product_versions ·               │
+                                        │  recommendations · applications · audit_log  │
                                         └──────────────────────────────────────────────┘
                      Future adapters: core banking (transactions) · product catalogue CMS ·
                      credit decisioning · notifications · Zenith app sign-in (OIDC)
 ```
+
+## From transactions to signals (`src/engine/ledger.ts`)
+
+The engine never sees typed-in monthly totals. Each customer's figures are derived from their raw statement lines:
+
+1. **Categorise.** Every line is labelled from its narration and channel alone — e.g. `NIP/BRIGHTPATH LOGISTICS LTD/SALARY SEP 2026` → salary, `REMITA/UNILAG/HOSTEL 2025-26` → education, `SAVE4ME/AUTO-SAVE/…` → savings, `ATM WDL …` → cash. Unit tests use narrations the categoriser has never seen.
+2. **Aggregate.** Over the six complete months before today: income per month (income categories), spending per month (all debits except transfers into savings), average end-of-day balance, and the usual day the main income lands.
+3. **Commitments.** A bill-like category (rent, utilities, subscriptions, airtime, school, debt repayment, transport) that appears in at least 5 of 6 months with steady amounts counts as a fixed commitment. Food and shopping never do.
+4. **Behaviour.** A month counts as a saving month if money moved into savings or at least 15% of income was left unspent. Card and cash share come from payment channels.
+5. **Evidence.** Signals quote what was found — "We found 6 salary payments from Brightpath Logistics Ltd…", "worked out from 142 transactions" — and the Map screen shows *How MoneyMap read your account*.
+
+Consent applies to the statement as well: money-in lines need `income_patterns`, everything else needs `account_activity`, and the derived summaries are dropped per permission.
+
+In production, step 1's input would come from a core-banking adapter instead of the `transactions` table seeded from `src/data/ledgers.ts`.
 
 ## Request flow: `POST /api/v1/recommendations`
 
@@ -35,7 +49,8 @@ MoneyMap is a decision layer that sits beside Zenith's existing systems. It does
 
 | PRD entity | Table | Notes |
 |---|---|---|
-| Customer | `customers` | Synthetic profiles |
+| Customer | `customers` | Synthetic identity, KYC and holdings — no financial figures |
+| (statement) | `transactions` | Raw lines: date, narration, amount, direction, channel. All income and spending figures are derived from these |
 | Consent | `consents`, `consent_events` | Current state plus full change history |
 | FinancialProfile | `financial_profiles` | Recomputed on every engine run; values the customer hasn't permitted are stored as empty |
 | TransactionSignal | `transaction_signals` | Replaced on every run, so a withdrawn permission removes its signals at once |
@@ -57,7 +72,7 @@ Interactive docs (OpenAPI / Swagger) are at **`/docs`** on the running server.
 | Area | Endpoints |
 |---|---|
 | Demo & auth | `POST /demo/session` (customer, optional preload), `POST /auth/demo-login` (bank admin), `GET /demo/customers`, `POST /demo/reset` |
-| Customer | `GET /customer/profile`, `GET /customer/financial-context`, `GET /customer/moneymap` (screen preview, issues nothing), `GET /customer/signals` |
+| Customer | `GET /customer/profile`, `GET /customer/financial-context`, `GET /customer/moneymap` (screen preview, issues nothing), `GET /customer/transactions` (categorised statement, consent-filtered), `GET /customer/signals` |
 | Consent | `GET /consent`, `POST /consent` |
 | Goals | `GET /goals`, `POST /goals`, `PATCH /goals/:id`, `DELETE /goals/:id` |
 | Recommendations | `POST /recommendations`, `GET /recommendations`, `GET /recommendations/:id`, `GET /recommendations/:id/explanation`, `POST /recommendations/:id/feedback`, `POST /recommendations/:id/explored` |

@@ -15,9 +15,15 @@ export function redactProfile(c: CustomerProfile, p: Permissions): CustomerProfi
     digitalShare: p.account_activity ? c.digitalShare : 0,
     cardSpendShare: p.account_activity ? c.cardSpendShare : 0,
     schoolPayments: p.account_activity ? c.schoolPayments : false,
-    // Salary credits are income data; everything else in the feed is account activity.
-    transactions: c.transactions.filter((t) => (t.category === "salary" || t.category === "allowance" ? p.income_patterns : p.account_activity)),
+    // Money in is income data; everything else in the feed is account activity.
+    transactions: c.transactions.filter((t) => (t.direction === "in" ? p.income_patterns : p.account_activity)),
     existingProducts: p.existing_products ? c.existingProducts : [],
+    derivation: c.derivation && {
+      ...c.derivation,
+      income: p.income_patterns ? c.derivation.income : null,
+      spending: p.spending_patterns ? c.derivation.spending : null,
+      activity: p.account_activity ? c.derivation.activity : null,
+    },
   };
 }
 

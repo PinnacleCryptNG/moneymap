@@ -630,7 +630,9 @@ function buildTrace(
     { stage: "Permitted data", result: `${permitted} of 5 categories allowed`, status: permitted ? "done" : "empty" },
     {
       stage: "Financial context",
-      result: ctxParts.length ? `${ctxParts.join(" · ")} a month · ${ctx.signals.length} signals` : `${ctx.signals.length} signals`,
+      result: `${ctxParts.length ? `${ctxParts.join(" · ")} a month · ` : ""}${ctx.signals.length} signals${
+        ctx.ledger && (ctx.ledger.income || ctx.ledger.spending || ctx.ledger.activity) ? ` from ${ctx.ledger.transactionCount} transactions` : ""
+      }`,
       status: ctx.signals.length ? "done" : "empty",
     },
     { stage: "Goal", result: ctx.goal ? ctx.goal.label : "No goal shared", status: ctx.goal ? "done" : "empty" },

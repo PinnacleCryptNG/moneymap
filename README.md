@@ -69,6 +69,7 @@ Pure TypeScript with no UI dependencies, unit-tested, and visible in the app as 
 Customer → Permitted data → Financial context → Goal → Need detection → Product fit → Eligibility → Timing → Recommendation → Explanation → Action
 ```
 
+- `ledger.ts`, **Read the statement**: each customer has six months of raw transactions with Nigerian bank-style narrations (`NIP/…/SALARY`, `POS/SHOPRITE…`, `REMITA/UNILAG…`, `ATM WDL`). A narration-only categoriser labels each line, then monthly income and spending, fixed commitments, typical balance, income day, saving months, and card and cash share are worked out from them. Nothing is typed in by hand: change a transaction and the decision changes.
 - `context.ts`, **Understand**: signals come only from permitted data, each with plain-language evidence and its source.
 - `needs.ts`, **Detect**: goal plus signals become scored needs.
 - `index.ts`, **Match / Decide / Explain**:

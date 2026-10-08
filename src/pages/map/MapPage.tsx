@@ -4,7 +4,9 @@ import { InsightCard } from "../../components/cards/InsightCard";
 import { MapJourney } from "../../components/cards/MapJourney";
 import { ButtonLink } from "../../components/shared/Button";
 import { PageHeader } from "../../components/shared/PageHeader";
+import { AccountReading } from "../../components/cards/AccountReading";
 import { EnginePipeline } from "../../components/recommendations/EnginePipeline";
+import { CATEGORY_LABELS } from "../../engine/ledger";
 import { NEED_LABELS } from "../../engine";
 import { goalPlan } from "../../engine/plan";
 import { PERMISSION_COPY } from "../../services/consent";
@@ -63,6 +65,8 @@ export function MapPage() {
           <ButtonLink to="/app/settings" size="sm" variant="secondary">Review permissions</ButtonLink>
         </div>
       )}
+
+      <AccountReading ctx={ctx} />
 
       <section aria-labelledby="signals-title">
         <h2 id="signals-title" className="mb-3">What your money is telling us</h2>
@@ -126,7 +130,7 @@ export function MapPage() {
 
         <section aria-labelledby="tx-title" className="card p-5 md:p-6">
           <h2 id="tx-title" className="mb-1 !text-[20px]">Recent account activity</h2>
-          <p className="mb-4 text-small text-navy-500">Visible only to you. MoneyMap's engine uses monthly patterns, not individual payments.</p>
+          <p className="mb-4 text-small text-navy-500">Visible only to you. Each line shows the bank's narration and the category MoneyMap read from it.</p>
           {ctx.activity ? (
             <ul className="flex flex-col divide-y divide-mist">
               {customer.transactions.map((t, i) => (
@@ -136,7 +140,10 @@ export function MapPage() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-small font-medium">{t.description}</span>
-                    <span className="text-caption !font-normal text-navy-500">{t.daysAgo === 1 ? "Yesterday" : `${t.daysAgo} days ago`}</span>
+                    <span className="block truncate font-mono text-[11px] text-navy-500" title={t.narration}>{t.narration}</span>
+                    <span className="text-caption !font-normal text-navy-500">
+                      {t.daysAgo === 0 ? "Today" : t.daysAgo === 1 ? "Yesterday" : `${t.daysAgo} days ago`} · {CATEGORY_LABELS[t.category]}
+                    </span>
                   </span>
                   <span className={`shrink-0 text-small font-semibold tabular-nums ${t.direction === "in" ? "text-green-700" : ""}`}>
                     {t.direction === "in" ? "+" : "−"}{formatNaira(t.amount)}

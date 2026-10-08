@@ -70,13 +70,72 @@ export type ExistingProductId =
   | "personal_loan"
   | "asset_finance";
 
+/** How a payment moved — as reported by the bank's core system. */
+export type Channel = "transfer" | "pos" | "web" | "bill_payment" | "atm" | "standing_order";
+
+/** One line of a bank statement, exactly as the core banking system records it. */
+export interface RawTransaction {
+  id: string;
+  /** YYYY-MM-DD */
+  date: string;
+  narration: string;
+  amount: number;
+  direction: "credit" | "debit";
+  channel: Channel;
+}
+
+/** What MoneyMap's categoriser decided a transaction is (from the narration alone). */
+export type TxCategory =
+  | "salary"
+  | "allowance"
+  | "side_income"
+  | "other_income"
+  | "rent"
+  | "utilities"
+  | "subscriptions"
+  | "airtime_data"
+  | "transport"
+  | "food"
+  | "shopping"
+  | "education"
+  | "family_support"
+  | "debt_repayment"
+  | "savings"
+  | "cash"
+  | "other";
+
+/** A categorised transaction for display. */
 export interface Transaction {
-  /** Days before "today" in the demo. */
+  /** Days before the demo date. */
   daysAgo: number;
   description: string;
+  narration: string;
   amount: number;
   direction: "in" | "out";
-  category: "salary" | "allowance" | "transfer" | "bills" | "airtime" | "food" | "transport" | "shopping" | "school" | "savings" | "rent" | "other";
+  category: TxCategory;
+  channel: Channel;
+}
+
+/** How MoneyMap worked out a customer's figures from their transactions. */
+export interface Derivation {
+  /** Calendar months analysed, e.g. "2026-04". */
+  months: string[];
+  transactionCount: number;
+  income: {
+    employer?: string;
+    mainCreditCount: number;
+    sources: { category: TxCategory; monthlyAverage: number }[];
+  } | null;
+  spending: {
+    byCategory: { category: TxCategory; monthlyAverage: number; share: number }[];
+    recurring: { label: string; monthlyAverage: number }[];
+  } | null;
+  activity: {
+    savingsTransfersMonthly: number;
+    savingsDestination?: string;
+    schoolDescription?: string;
+    cashShare: number;
+  } | null;
 }
 
 /** Synthetic customer record (anonymised prototype data). */
@@ -110,9 +169,21 @@ export interface CustomerProfile {
   /** School-related payments seen in account activity. */
   schoolPayments: boolean;
   existingProducts: ExistingProductId[];
+  /** Most recent transactions, categorised (newest first). */
   transactions: Transaction[];
+  /** How the figures above were derived from the raw ledger. */
+  derivation?: Derivation;
   defaultGoal?: GoalDraft;
 }
+
+/**
+ * A synthetic customer before MoneyMap has read their account: identity, KYC basics and products.
+ * Everything financial is derived from their ledger (see engine/ledger.ts).
+ */
+export type PersonaBase = Pick<
+  CustomerProfile,
+  "id" | "name" | "firstName" | "age" | "segment" | "occupation" | "city" | "persona" | "story" | "expectedOutcome" | "existingProducts" | "defaultGoal"
+> & { openingBalance: number };
 
 export interface GoalDraft {
   type: GoalType;

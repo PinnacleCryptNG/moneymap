@@ -1,6 +1,7 @@
 // Stage 1 — UNDERSTAND: build the customer's financial context from permitted data only.
 import type {
   CustomerProfile,
+  Derivation,
   ExistingProductId,
   FinancialGoal,
   PermissionKey,
@@ -41,6 +42,8 @@ export interface FinancialContext {
   holdings: ExistingProductId[] | null;
   goal: FinancialGoal | null;
   signals: DetectedSignal[];
+  /** How the figures were read from transactions — only the parts the customer permitted. */
+  ledger: Derivation | null;
   /** Share of available data categories the customer has permitted (0–1). */
   coverage: number;
 }
@@ -109,11 +112,13 @@ export function buildFinancialContext(
       );
     }
     if (customer.incomeSource === "salary") {
-      const employer = customer.transactions.find((t) => t.category === "salary")?.description.replace(/^Salary — /, "");
+      const d = customer.derivation?.income;
       add(
         "salary_account",
         1,
-        `Your salary${employer ? ` from ${employer}` : ""} is paid into your Zenith account around the ${ordinal(customer.incomeDay)} of each month.`,
+        d?.employer
+          ? `We found ${d.mainCreditCount} salary payments from ${d.employer} in the last six months, arriving around the ${ordinal(customer.incomeDay)}.`
+          : `Your salary is paid into your Zenith account around the ${ordinal(customer.incomeDay)} of each month.`,
         "income_patterns",
       );
     } else if (customer.incomeSource === "allowance") {
@@ -150,7 +155,9 @@ export function buildFinancialContext(
       add(
         "regular_surplus",
         Math.min(1, ratio / 0.4),
-        `After your usual spending and commitments, about ${formatNaira(avg)} is left over each month on average.`,
+        `After your usual spending and commitments, about ${formatNaira(avg)} is left over each month on average${
+          customer.derivation ? ` — worked out from ${customer.derivation.transactionCount} transactions` : ""
+        }.`,
         "spending_patterns",
       );
     } else if (ratio < 0.08) {
@@ -174,10 +181,13 @@ export function buildFinancialContext(
       schoolPayments: customer.schoolPayments,
     };
     if (customer.savingMonths >= 3) {
+      const a = customer.derivation?.activity;
       add(
         "repeated_saving_behaviour",
         customer.savingMonths / 6,
-        `You've left money unspent or set it aside in ${customer.savingMonths} of the last 6 months.`,
+        a?.savingsTransfersMonthly
+          ? `You moved about ${formatNaira(a.savingsTransfersMonthly)} a month into ${a.savingsDestination ?? "savings"} in ${customer.savingMonths} of the last 6 months.`
+          : `You left at least 15% of your income unspent in ${customer.savingMonths} of the last 6 months.`,
         "account_activity",
       );
     }
@@ -200,11 +210,11 @@ export function buildFinancialContext(
       }
     }
     if (customer.schoolPayments && customer.age <= 25) {
-      const school = customer.transactions.find((t) => t.category === "school");
+      const school = customer.derivation?.activity?.schoolDescription;
       add(
         "student_activity",
         1,
-        `Your account shows student life — payments like “${school?.description ?? "school fees"}” and campus spending.`,
+        `Your account shows student life — payments like “${school ?? "school fees"}” and everyday campus spending.`,
         "account_activity",
       );
     }
@@ -287,6 +297,14 @@ export function buildFinancialContext(
     holdings,
     goal: permittedGoal,
     signals: dedupe(signals),
+    ledger: customer.derivation
+      ? {
+          ...customer.derivation,
+          income: permissions.income_patterns ? customer.derivation.income : null,
+          spending: permissions.spending_patterns ? customer.derivation.spending : null,
+          activity: permissions.account_activity ? customer.derivation.activity : null,
+        }
+      : null,
     coverage,
   };
 }

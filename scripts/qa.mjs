@@ -189,7 +189,9 @@ try {
       await page.getByText("We found a strong match.").waitFor({ timeout: 5000 });
       check(`Daniel recommendation is Aspire (${size})`, await page.getByRole("heading", { name: "Aspire" }).isVisible());
       await go(page, "/app/map");
-      check(`Realistic transactions shown (${size})`, await page.getByText("UNILAG — departmental & faculty dues").isVisible());
+      check(`Account read from transactions (${size})`, await page.getByRole("heading", { name: "How MoneyMap read your account" }).isVisible());
+      check(`Allowance detected from narrations (${size})`, await page.getByText("Allowance", { exact: true }).first().isVisible());
+      check(`Raw bank narrations shown (${size})`, (await page.getByText(/^(POS|WEB|NIP|AIRTEL)/).count()) > 0);
     });
 
     // 4. Tolu: no match, then a new goal changes the answer.

@@ -1,10 +1,12 @@
-import type { CustomerProfile } from "../types";
+import { deriveProfile } from "../engine/ledger";
+import type { CustomerProfile, PersonaBase } from "../types";
+import { buildLedger, DEMO_TODAY, openingBalance } from "./ledgers";
 
 /**
  * Synthetic, anonymised demo customers (Phase 2 §9). No real customer data is used.
  * Names, employers and counterparties are fictional.
  */
-export const CUSTOMERS: CustomerProfile[] = [
+const PERSONAS: Omit<PersonaBase, "openingBalance">[] = [
   {
     id: "CUST_SARAH",
     name: "Sarah Okafor",
@@ -16,31 +18,7 @@ export const CUSTOMERS: CustomerProfile[] = [
     persona: "The Saver",
     story: "Steady salary and a monthly surplus — but what she saves stays in the same account she spends from.",
     expectedOutcome: "Goal-based savings → SAVE4ME",
-    monthlyIncome: [445000, 450000, 450000, 450000, 450000, 455000],
-    incomeSource: "salary",
-    incomeDay: 25,
-    monthlySpending: [285000, 275000, 280000, 290000, 270000, 280000],
-    recurringCommitments: 140000,
-    averageBalance: 620000,
-    savingMonths: 5,
-    digitalShare: 0.85,
-    cardSpendShare: 0.55,
-    schoolPayments: false,
     existingProducts: ["current_account", "debit_card"],
-    transactions: [
-      { daysAgo: 1, description: "POS — Bukka Hut, Admiralty Way", amount: 8900, direction: "out", category: "food" },
-      { daysAgo: 2, description: "Bolt ride — Lekki Phase 1", amount: 3500, direction: "out", category: "transport" },
-      { daysAgo: 4, description: "Jumia order — kitchen items", amount: 12500, direction: "out", category: "shopping" },
-      { daysAgo: 5, description: "Transfer to Mummy — upkeep", amount: 30000, direction: "out", category: "transfer" },
-      { daysAgo: 7, description: "Chowdeck order", amount: 6500, direction: "out", category: "food" },
-      { daysAgo: 8, description: "DStv Compact subscription", amount: 15700, direction: "out", category: "bills" },
-      { daysAgo: 9, description: "Bolt ride — Victoria Island", amount: 4800, direction: "out", category: "transport" },
-      { daysAgo: 10, description: "POS — Shoprite, Lekki", amount: 23400, direction: "out", category: "food" },
-      { daysAgo: 11, description: "MTN data bundle — 25GB", amount: 9500, direction: "out", category: "airtime" },
-      { daysAgo: 12, description: "IKEDC prepaid token", amount: 15000, direction: "out", category: "bills" },
-      { daysAgo: 12, description: "Rent contribution — transfer to Adaeze N.", amount: 60000, direction: "out", category: "rent" },
-      { daysAgo: 13, description: "Salary — Brightpath Logistics Ltd", amount: 450000, direction: "in", category: "salary" },
-    ],
     defaultGoal: {
       type: "save_more",
       label: "Save ₦1,000,000",
@@ -60,30 +38,7 @@ export const CUSTOMERS: CustomerProfile[] = [
     persona: "The Young Customer",
     story: "Lives on a monthly allowance plus small design gigs, pays for almost everything by card and app — still on a basic savings account his parents opened.",
     expectedOutcome: "Student banking → Aspire",
-    monthlyIncome: [85000, 70000, 95000, 72000, 110000, 82000],
-    incomeSource: "allowance",
-    incomeDay: 1,
-    monthlySpending: [80000, 68000, 90000, 71000, 101000, 78000],
-    recurringCommitments: 15000,
-    averageBalance: 22000,
-    savingMonths: 1,
-    digitalShare: 0.92,
-    cardSpendShare: 0.7,
-    schoolPayments: true,
     existingProducts: ["savings_account", "debit_card"],
-    transactions: [
-      { daysAgo: 1, description: "POS — Faculty of Science cafeteria", amount: 1800, direction: "out", category: "food" },
-      { daysAgo: 3, description: "Printing & binding — Akoka", amount: 3500, direction: "out", category: "school" },
-      { daysAgo: 5, description: "Airtel data bundle — 6GB", amount: 2000, direction: "out", category: "airtime" },
-      { daysAgo: 6, description: "Jumia order — phone case", amount: 5000, direction: "out", category: "shopping" },
-      { daysAgo: 8, description: "Chowdeck order", amount: 6800, direction: "out", category: "food" },
-      { daysAgo: 10, description: "BRT Cowry card top-up", amount: 2000, direction: "out", category: "transport" },
-      { daysAgo: 12, description: "Transfer from Tobi A. — logo design", amount: 15000, direction: "in", category: "other" },
-      { daysAgo: 13, description: "POS — Faculty of Science cafeteria", amount: 2400, direction: "out", category: "food" },
-      { daysAgo: 15, description: "Airtel data bundle — 6GB", amount: 3000, direction: "out", category: "airtime" },
-      { daysAgo: 16, description: "UNILAG — departmental & faculty dues", amount: 25000, direction: "out", category: "school" },
-      { daysAgo: 18, description: "Transfer from Eze Chukwuemeka — October allowance", amount: 70000, direction: "in", category: "allowance" },
-    ],
     defaultGoal: {
       type: "everyday",
       label: "Manage my everyday money",
@@ -103,27 +58,7 @@ export const CUSTOMERS: CustomerProfile[] = [
     persona: "The No-Match Customer",
     story: "Already saving through SAVE4ME, already has a credit card he pays off in full, and has no new goal. Nothing in the catalogue would meaningfully improve his situation.",
     expectedOutcome: "No recommendation",
-    monthlyIncome: [780000, 780000, 780000, 785000, 780000, 780000],
-    incomeSource: "salary",
-    incomeDay: 27,
-    monthlySpending: [520000, 515000, 530000, 525000, 510000, 520000],
-    recurringCommitments: 330000,
-    averageBalance: 950000,
-    savingMonths: 6,
-    digitalShare: 0.9,
-    cardSpendShare: 0.7,
-    schoolPayments: false,
     existingProducts: ["current_account", "debit_card", "save4me", "credit_card"],
-    transactions: [
-      { daysAgo: 1, description: "POS — Spar, Ikeja City Mall", amount: 41300, direction: "out", category: "food" },
-      { daysAgo: 3, description: "Uber trip — Allen Avenue", amount: 5200, direction: "out", category: "transport" },
-      { daysAgo: 5, description: "Credit card repayment — full balance", amount: 118400, direction: "out", category: "bills" },
-      { daysAgo: 6, description: "Ikeja Electric — postpaid bill", amount: 32000, direction: "out", category: "bills" },
-      { daysAgo: 7, description: "School fees instalment — Greensprings School", amount: 180000, direction: "out", category: "school" },
-      { daysAgo: 8, description: "Glo data bundle — 40GB", amount: 11000, direction: "out", category: "airtime" },
-      { daysAgo: 10, description: "SAVE4ME — monthly auto-save", amount: 150000, direction: "out", category: "savings" },
-      { daysAgo: 11, description: "Salary — Okonkwo & Partners (Chartered Accountants)", amount: 780000, direction: "in", category: "salary" },
-    ],
     defaultGoal: {
       type: "not_sure",
       label: "Not sure yet",
@@ -133,6 +68,14 @@ export const CUSTOMERS: CustomerProfile[] = [
     },
   },
 ];
+
+/** Read a persona's account: every financial figure is derived from their six-month statement. */
+export function profileFromLedger(base: PersonaBase, ledger = buildLedger(base.id)): CustomerProfile {
+  return deriveProfile(base, ledger, { today: DEMO_TODAY, openingBalance: base.openingBalance });
+}
+
+export const PERSONA_BASES: PersonaBase[] = PERSONAS.map((p) => ({ ...p, openingBalance: openingBalance(p.id) }));
+export const CUSTOMERS: CustomerProfile[] = PERSONA_BASES.map((b) => profileFromLedger(b));
 
 export function getCustomer(id: string): CustomerProfile {
   return CUSTOMERS.find((c) => c.id === id) ?? CUSTOMERS[0];
