@@ -6,11 +6,21 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { adapterConfigFromEnv, createAdapters } from "./adapters";
 import { buildApp } from "./app";
+import { securityConfigFromEnv } from "./security";
 import { openDb } from "./db";
 
+// Fails at startup if production mode is missing a required secret or sign-in setting.
+const security = securityConfigFromEnv();
 const db = openDb();
-const adapters = createAdapters(adapterConfigFromEnv());
-const app = await buildApp(db, { logger: process.env.NODE_ENV !== "test", adapters, retryEveryMs: 60_000 });
+const adapters = createAdapters(adapterConfigFromEnv(), { allowDemoTokens: security.mode === "demo" });
+const app = await buildApp(db, {
+  logger: process.env.NODE_ENV !== "test",
+  adapters,
+  security,
+  retryEveryMs: 60_000,
+  trustProxy: process.env.MONEYMAP_TRUST_PROXY === "1",
+});
+console.log(`mode: ${security.mode}`);
 for (const a of [adapters.identity, adapters.coreBanking, adapters.notifications, adapters.applications]) {
   console.log(`adapter ${a.name}: ${a.health.mode}${a.health.target ? ` → ${a.health.target}` : ""}`);
 }

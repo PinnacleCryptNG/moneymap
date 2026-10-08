@@ -176,6 +176,8 @@ export const http = {
     };
   },
 
+  exportMyData: () => call<Record<string, unknown>>("GET", "/customer/data-export"),
+  eraseMyData: () => call("DELETE", "/customer/data"),
   simulateEvent: (type: "income" | "windfall") => call("POST", "/demo/events", { type }),
   readNotification: (notificationId: string) => call("POST", `/notifications/${notificationId}/read`, {}),
 

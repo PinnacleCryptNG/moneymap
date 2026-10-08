@@ -438,6 +438,17 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
   }
 
   /** Clear one customer's activity (Demo Mode) or everything. */
+  /** NDPA right of erasure: remove everything MoneyMap itself holds about the customer. */
+  function eraseCustomer(customerId: string) {
+    resetCustomer(customerId);
+    tx(() => {
+      // MoneyMap's cached copy of bank lines goes too; the bank's own records stay with the bank.
+      db.prepare("DELETE FROM transactions WHERE customer_id = ? AND id LIKE 'BANK_%'").run(customerId);
+      db.prepare("DELETE FROM statement_syncs WHERE customer_id = ?").run(customerId);
+    });
+    audit("customer", "customer.data_erased", customerId);
+  }
+
   function resetCustomer(customerId: string) {
     tx(() => {
       db.prepare("DELETE FROM recommendation_feedback WHERE customer_id = ?").run(customerId);
@@ -502,7 +513,8 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
           "INSERT INTO notifications (id, customer_id, event_id, kind, title, body, product_id, product_name, recommendation_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         ).run(n.id, customerId, eventId, n.kind, n.title, n.body, n.product_id, n.product_name, n.recommendation_id ?? null, t);
     });
-    audit("system", `trigger.${decision.outcome}`, `${customerId}: ${trigger.description} ${trigger.amount} — ${decision.reason}`);
+    // No amounts or narrations in the audit log: it records what MoneyMap decided, not the customer's finances.
+    audit("system", `trigger.${decision.outcome}`, `${customerId}: ${trigger.type}${n ? ` → ${n.product_name} (${n.kind})` : ""}`);
     return { event: listTriggerEvents(customerId).find((e) => e.id === eventId)!, notification: n };
   }
 
@@ -700,7 +712,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
         "INSERT INTO goals (id, customer_id, type, label, amount, timeline_months, saved, expense_kind, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       ).run(goalId, customerId, g.type, g.label, g.amount, g.timelineMonths, g.saved ?? 0, g.expenseKind ?? null, makeActive ? 1 : 0, now());
     });
-    audit("customer", "goal.created", `${customerId}: ${g.label}`);
+    audit("customer", "goal.created", `${customerId}: ${g.type}`);
     return listGoals(customerId).find((x) => x.id === goalId)!;
   }
 
@@ -714,7 +726,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
         "UPDATE goals SET type = ?, label = ?, amount = ?, timeline_months = ?, saved = ?, expense_kind = ?, active = ? WHERE id = ? AND customer_id = ?",
       ).run(next.type, next.label, next.amount, next.timelineMonths, next.saved, next.expenseKind ?? null, next.active ? 1 : 0, goalId, customerId);
     });
-    audit("customer", "goal.updated", `${customerId}: ${next.label}`);
+    audit("customer", "goal.updated", `${customerId}: ${next.type}`);
     return listGoals(customerId).find((g) => g.id === goalId)!;
   }
 
@@ -1024,6 +1036,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
     resetAll,
     getCustomer,
     listCustomers,
+    eraseCustomer,
     addTransaction,
     mergeStatement,
     recordSync,

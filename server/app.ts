@@ -14,6 +14,7 @@ import { categorise, describe } from "../src/engine/ledger";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createAdapters, type Adapters } from "./adapters";
 import { issueToken, type Session } from "./auth";
+import { applySecurityHeaders, DEFAULT_SECURITY, rateLimiter, type SecurityConfig } from "./security";
 import { publicProfile, redactProfile } from "./consent";
 import { PERMISSION_KEYS, type Db } from "./db";
 
@@ -61,9 +62,32 @@ interface GoalBody {
 
 const fail = (reply: FastifyReply, code: number, error: string, message: string) => reply.code(code).send({ error, message });
 
-export async function buildApp(db: Db, opts: { logger?: boolean; adapters?: Adapters; retryEveryMs?: number } = {}) {
-  const app = Fastify({ logger: opts.logger ?? false, ajv: { customOptions: { removeAdditional: false, coerceTypes: false } } });
+export async function buildApp(
+  db: Db,
+  opts: { logger?: boolean; adapters?: Adapters; retryEveryMs?: number; security?: SecurityConfig; trustProxy?: boolean } = {},
+) {
+  const app = Fastify({
+    logger: opts.logger ?? false,
+    ajv: { customOptions: { removeAdditional: false, coerceTypes: false } },
+    // Requests here are small JSON documents; anything bigger is refused before parsing.
+    bodyLimit: 64 * 1024,
+    // Behind Render's (or the bank's) load balancer the client IP comes from X-Forwarded-For.
+    trustProxy: opts.trustProxy ?? false,
+  });
   const adapters = opts.adapters ?? createAdapters();
+  const security = opts.security ?? DEFAULT_SECURITY;
+  const DEMO = security.mode === "demo";
+
+  applySecurityHeaders(app, security);
+  if (security.rateLimits) {
+    const auth = rateLimiter(security.rateLimits.auth);
+    const general = rateLimiter(security.rateLimits.general);
+    const AUTH_PATHS = new Set(["/api/v1/demo/session", "/api/v1/auth/demo-login"]);
+    app.addHook("onRequest", async (req, reply) => {
+      if (!req.url.startsWith("/api/")) return;
+      return AUTH_PATHS.has(req.url.split("?")[0]) ? auth(req, reply) : general(req, reply);
+    });
+  }
 
   // Keep the raw JSON body: signed bank webhooks are verified over the exact bytes that were sent.
   app.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
@@ -78,7 +102,8 @@ export async function buildApp(db: Db, opts: { logger?: boolean; adapters?: Adap
     }
   });
 
-  await app.register(cors, { origin: true });
+  // Demo: any origin (bearer tokens, no cookies). Production: only the listed origins; none = same origin only.
+  await app.register(cors, { origin: DEMO ? true : security.corsOrigins.length ? security.corsOrigins : false });
   await app.register(swagger, {
     openapi: {
       info: {
@@ -155,55 +180,63 @@ export async function buildApp(db: Db, opts: { logger?: boolean; adapters?: Adap
   app.get("/api/v1/health", { schema: { hide: true } }, async () => ({ status: "ok", audit: db.verifyAudit() }));
 
   // ---------------- Demo & auth ----------------
-  app.post<{ Body: { customer_id: string; preload?: boolean } }>(
-    "/api/v1/demo/session",
-    {
-      schema: {
-        tags: ["Demo & auth"],
-        summary: "Start a demo session as a synthetic customer",
-        description: "preload=true loads the full context instantly (all permissions granted, default goal) — Demo Mode. preload=false starts fresh for onboarding.",
-        body: {
-          type: "object",
-          required: ["customer_id"],
-          additionalProperties: false,
-          properties: { customer_id: { type: "string" }, preload: { type: "boolean" } },
+  if (DEMO) {
+    app.post<{ Body: { customer_id: string; preload?: boolean } }>(
+      "/api/v1/demo/session",
+      {
+        schema: {
+          tags: ["Demo & auth"],
+          summary: "Start a demo session as a synthetic customer",
+          description: "preload=true loads the full context instantly (all permissions granted, default goal) — Demo Mode. preload=false starts fresh for onboarding.",
+          body: {
+            type: "object",
+            required: ["customer_id"],
+            additionalProperties: false,
+            properties: { customer_id: { type: "string" }, preload: { type: "boolean" } },
+          },
         },
       },
-    },
-    async (req, reply) => {
-      const c = db.getCustomer(req.body.customer_id);
-      if (!c) return fail(reply, 404, "not_found", "No such demo customer.");
-      db.resetCustomer(c.id);
-      if (req.body.preload) {
-        db.setPermissions(c.id, Object.fromEntries(PERMISSION_KEYS.map((k) => [k, true])) as Permissions);
-        if (c.defaultGoal) db.createGoal(c.id, c.defaultGoal);
-      }
-      await syncStatement(c.id);
-      db.audit("system", "demo.session_started", `${c.id}${req.body.preload ? " (preloaded)" : ""}`);
-      return { token: issueToken(c.id, "customer"), customer_id: c.id };
-    },
-  );
-
-  app.post<{ Body: { role: "admin" } }>(
-    "/api/v1/auth/demo-login",
-    {
-      schema: {
-        tags: ["Demo & auth"],
-        summary: "Get a bank-admin token (demo)",
-        body: { type: "object", required: ["role"], additionalProperties: false, properties: { role: { type: "string", enum: ["admin"] } } },
+      async (req, reply) => {
+        const c = db.getCustomer(req.body.customer_id);
+        if (!c) return fail(reply, 404, "not_found", "No such demo customer.");
+        db.resetCustomer(c.id);
+        if (req.body.preload) {
+          db.setPermissions(c.id, Object.fromEntries(PERMISSION_KEYS.map((k) => [k, true])) as Permissions);
+          if (c.defaultGoal) db.createGoal(c.id, c.defaultGoal);
+        }
+        await syncStatement(c.id);
+        db.audit("system", "demo.session_started", `${c.id}${req.body.preload ? " (preloaded)" : ""}`);
+        return { token: issueToken(c.id, "customer"), customer_id: c.id };
       },
-    },
-    async () => ({ token: issueToken("zenith-admin", "admin") }),
-  );
+    );
+  }
 
-  app.get("/api/v1/demo/customers", { schema: { tags: ["Demo & auth"], summary: "List synthetic demo customers" } }, async () =>
-    db.listCustomers().map((c) => ({ id: c.id, name: c.name, age: c.age, persona: c.persona, expected_outcome: c.expectedOutcome, transactions: db.getTransactions(c.id).length })),
-  );
+  if (DEMO) {
+    app.post<{ Body: { role: "admin" } }>(
+      "/api/v1/auth/demo-login",
+      {
+        schema: {
+          tags: ["Demo & auth"],
+          summary: "Get a bank-admin token (demo)",
+          body: { type: "object", required: ["role"], additionalProperties: false, properties: { role: { type: "string", enum: ["admin"] } } },
+        },
+      },
+      async () => ({ token: issueToken("zenith-admin", "admin") }),
+    );
+  }
 
-  app.post("/api/v1/demo/reset", { preHandler: adminOnly, schema: { tags: ["Demo & auth"], summary: "Reset all demo data", ...secured } }, async () => {
-    db.resetAll();
-    return { status: "reset" };
-  });
+  if (DEMO) {
+    app.get("/api/v1/demo/customers", { schema: { tags: ["Demo & auth"], summary: "List synthetic demo customers" } }, async () =>
+      db.listCustomers().map((c) => ({ id: c.id, name: c.name, age: c.age, persona: c.persona, expected_outcome: c.expectedOutcome, transactions: db.getTransactions(c.id).length })),
+    );
+  }
+
+  if (DEMO) {
+    app.post("/api/v1/demo/reset", { preHandler: adminOnly, schema: { tags: ["Demo & auth"], summary: "Reset all demo data", ...secured } }, async () => {
+      db.resetAll();
+      return { status: "reset" };
+    });
+  }
 
   // ---------------- Customer ----------------
   app.get("/api/v1/customer/profile", { preHandler: customerOnly, schema: { tags: ["Customer"], summary: "Customer profile (consent-filtered)", ...secured } }, async (req) => {
@@ -351,6 +384,55 @@ export async function buildApp(db: Db, opts: { logger?: boolean; adapters?: Adap
     async (req, reply) => (db.deleteGoal(req.session!.sub, req.params.id) ? reply.code(204).send() : fail(reply, 404, "not_found", "Goal not found.")),
   );
 
+  // ---------------- Data rights (step 5, Nigeria Data Protection Act 2023) ----------------
+  app.get(
+    "/api/v1/customer/data-export",
+    {
+      preHandler: customerOnly,
+      schema: { tags: ["Customer"], summary: "Everything MoneyMap holds about the customer, as one JSON document (right of access / portability)", ...secured },
+    },
+    async (req, reply) => {
+      const id = req.session!.sub;
+      const c = db.getCustomer(id)!;
+      const consent = db.getPermissions(id);
+      db.audit("customer", "customer.data_exported", id);
+      reply.header("content-disposition", `attachment; filename="moneymap-data-${id}.json"`);
+      return {
+        exported_at: new Date().toISOString(),
+        controller_note:
+          "This is the data MoneyMap itself holds or derived. Your account statement remains a Zenith Bank record; MoneyMap reads it only with your permission.",
+        customer: { id: c.id, name: c.name, age: c.age, occupation: c.occupation, city: c.city },
+        consent: { current: consent, history: db.consentHistory(id) },
+        goals: db.listGoals(id).map(goalOut),
+        preferences: db.getPreferences(id),
+        recommendations: db.listRecommendations(id),
+        messages: db.listNotifications(id),
+        events_noticed: db.listTriggerEvents(id),
+        product_requests: db.listApplications(id),
+        statement: { lines: db.getTransactions(id).length, last_refresh: db.lastSync(id) },
+      };
+    },
+  );
+
+  app.delete(
+    "/api/v1/customer/data",
+    {
+      preHandler: customerOnly,
+      schema: {
+        tags: ["Customer"],
+        summary: "Erase the customer's MoneyMap data (right to erasure)",
+        description:
+          "Removes consents, goals, preferences, recommendations, feedback, messages, events, product requests and MoneyMap's cached copy of statement lines. " +
+          "The audit log keeps only that an erasure happened. Bank records held by Zenith are not affected.",
+        ...secured,
+      },
+    },
+    async (req, reply) => {
+      db.eraseCustomer(req.session!.sub);
+      return reply.code(204).send();
+    },
+  );
+
   // ---------------- Events (step 3) ----------------
   /**
    * A new statement line arrives. Store it; if it is a trigger (income landing, a windfall), run the engine
@@ -362,7 +444,7 @@ export async function buildApp(db: Db, opts: { logger?: boolean; adapters?: Adap
     if (!transaction) return { duplicate: true, transaction: null, trigger: null, event: null, notification: null };
     const trigger = detectTrigger(transaction, before);
     if (!trigger) {
-      db.audit("system", "transaction.received", `${customerId}: ${describe(transaction)} ${transaction.amount} (no trigger)`);
+      db.audit("system", "transaction.received", `${customerId}: ${categorise(transaction)} (no trigger)`);
       return { transaction, trigger: null, event: null, notification: null };
     }
     const history = db.listRecommendations(customerId);
@@ -527,24 +609,26 @@ export async function buildApp(db: Db, opts: { logger?: boolean; adapters?: Adap
     },
   );
 
-  app.post<{ Body: { type: "income" | "windfall" } }>(
-    "/api/v1/demo/events",
-    {
-      preHandler: customerOnly,
-      schema: {
-        tags: ["Events"],
-        summary: "Demo Mode: simulate money arriving for the signed-in customer",
-        description: "income = the customer's usual salary or allowance lands; windfall = a one-off bonus of about twice their usual monthly income.",
-        body: { type: "object", required: ["type"], additionalProperties: false, properties: { type: { type: "string", enum: ["income", "windfall"] } } },
-        ...secured,
+  if (DEMO) {
+    app.post<{ Body: { type: "income" | "windfall" } }>(
+      "/api/v1/demo/events",
+      {
+        preHandler: customerOnly,
+        schema: {
+          tags: ["Events"],
+          summary: "Demo Mode: simulate money arriving for the signed-in customer",
+          description: "income = the customer's usual salary or allowance lands; windfall = a one-off bonus of about twice their usual monthly income.",
+          body: { type: "object", required: ["type"], additionalProperties: false, properties: { type: { type: "string", enum: ["income", "windfall"] } } },
+          ...secured,
+        },
       },
-    },
-    async (req, reply) => {
-      const id = req.session!.sub;
-      // The id is replaced when the line is stored.
-      return reply.code(201).send(await ingest(id, simulatedCredit(req.body.type, db.getCustomer(id)!, DEMO_TODAY, "pending")));
-    },
-  );
+      async (req, reply) => {
+        const id = req.session!.sub;
+        // The id is replaced when the line is stored.
+        return reply.code(201).send(await ingest(id, simulatedCredit(req.body.type, db.getCustomer(id)!, DEMO_TODAY, "pending")));
+      },
+    );
+  }
 
   app.get("/api/v1/events", { preHandler: customerOnly, schema: { tags: ["Events"], summary: "What MoneyMap noticed on the account, and what it decided", ...secured } }, async (req) =>
     db.listTriggerEvents(req.session!.sub),
@@ -810,8 +894,10 @@ export async function buildApp(db: Db, opts: { logger?: boolean; adapters?: Adap
     async (req, reply) => db.setProductStatus(req.params.id, req.body.status) ?? fail(reply, 404, "not_found", "Product not found."),
   );
 
-  app.setErrorHandler((err: Error & { validation?: unknown }, _req, reply) => {
+  // Client errors keep their status (400, 413, 415…); unexpected errors are logged but never shown to the caller.
+  app.setErrorHandler((err: Error & { validation?: unknown; statusCode?: number }, _req, reply) => {
     if (err.validation) return fail(reply, 400, "invalid_request", err.message);
+    if (err.statusCode && err.statusCode >= 400 && err.statusCode < 500) return fail(reply, err.statusCode, "bad_request", err.message);
     app.log.error(err);
     return fail(reply, 500, "server_error", "Something went wrong. Your information is safe — try again.");
   });

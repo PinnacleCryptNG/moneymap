@@ -17,12 +17,15 @@ export interface OidcConfig {
   jwksUrl: string;
   /** Claim holding MoneyMap's customer id (default "sub"). */
   customerClaim?: string;
+  /** A staff token whose "roles" (or "groups") claim includes this value gets the bank view. Default "moneymap_admin". */
+  adminRole?: string;
 }
 
 const CLOCK_SKEW_S = 60;
 const JWKS_TTL_MS = 10 * 60 * 1000;
 
-export function identityAdapter(oidc: OidcConfig | null): IdentityAdapter {
+export function identityAdapter(oidc: OidcConfig | null, opts: { allowDemoTokens?: boolean } = {}): IdentityAdapter {
+  const allowDemoTokens = opts.allowDemoTokens ?? true;
   const health = newHealth(oidc ? "http" : "demo", oidc?.jwksUrl);
   let keys: Map<string, KeyObject> | null = null;
   let fetchedAt = 0;
@@ -64,6 +67,9 @@ export function identityAdapter(oidc: OidcConfig | null): IdentityAdapter {
       if (c.iss !== oidc!.issuer || !aud.includes(oidc!.audience)) return null;
       if (typeof c.exp !== "number" || c.exp + CLOCK_SKEW_S < nowS) return null;
       if (typeof c.nbf === "number" && c.nbf - CLOCK_SKEW_S > nowS) return null;
+      // Bank staff: a role from Zenith's identity provider opens the bank view. Customers never get it.
+      const roles = [c.roles, c.groups].flat().filter((x): x is string => typeof x === "string");
+      if (roles.includes(oidc!.adminRole ?? "moneymap_admin") && typeof c.sub === "string") return { sub: c.sub, role: "admin", exp: c.exp };
       const sub = c[oidc!.customerClaim ?? "sub"];
       return typeof sub === "string" && sub ? { sub, role: "customer", exp: c.exp } : null;
     } catch {
@@ -78,7 +84,8 @@ export function identityAdapter(oidc: OidcConfig | null): IdentityAdapter {
       if (!token) return null;
       // MoneyMap's own tokens have two parts; a JWT has three. Demo tokens keep working alongside OIDC.
       if (oidc && token.split(".").length === 3) return verifyJwt(token);
-      return verifyToken(token);
+      // Production issues no demo tokens, so it accepts none.
+      return allowDemoTokens ? verifyToken(token) : null;
     },
   };
 }

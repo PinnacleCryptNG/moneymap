@@ -93,6 +93,7 @@ Interactive docs (OpenAPI / Swagger) are at **`/docs`** on the running server.
 | Products | `GET /products`, `GET /products/:id`, `POST /products/:id/eligibility-check`, `POST /products/:id/apply`, `GET /applications` |
 | Preferences | `GET /preferences`, `PATCH /preferences` |
 | Events | `POST /events/transactions` (bank feed, admin token), `POST /demo/events` (`income` or `windfall`), `GET /events`, `GET /notifications`, `POST /notifications/:id/read` |
+| Data rights | `GET /customer/data-export`, `DELETE /customer/data` — see [SECURITY.md](SECURITY.md) |
 | Integrations | `GET /admin/integrations`, `POST /admin/integrations/retry`, `GET /customer/statement-sync` — see [INTEGRATION.md](INTEGRATION.md) |
 | Bank (admin) | `GET /admin/metrics`, `GET /admin/recommendations`, `GET /admin/audit`, `GET /admin/events`, `GET /admin/model-versions`, `PATCH /admin/products/:id` |
 
@@ -107,18 +108,17 @@ All paths are under `/api/v1`. Request bodies are schema-validated and unknown f
 
 The engine is the same code in both modes. That's why it's pure TypeScript with no UI or server dependencies.
 
-## Security posture (prototype → production)
+## Security posture
 
-| Prototype | Production |
-|---|---|
-| HMAC-signed demo tokens; open demo sign-in | Zenith app session (OIDC), short-lived tokens, RBAC |
-| Consent redaction before the engine; every consent change logged | Same, plus consent receipts under the Nigeria Data Protection Act 2023 and the CBN open banking framework |
-| Hash-chained audit log in SQLite | Append-only store / WORM storage, SIEM export |
-| Schema validation, unknown fields rejected | Add rate limiting, an API gateway, secrets management and pen testing |
-| Synthetic data only | Approved, anonymised data for the pilot |
+See [SECURITY.md](SECURITY.md). In short, `MONEYMAP_MODE=production` removes every demo endpoint and accepts only Zenith OIDC sign-in (customers, plus staff with the `moneymap_admin` role). It also restricts CORS, sends HSTS, and refuses to start without a strong secret. Both modes have:
+
+- rate limits, a 64 KB body limit and generic error messages;
+- a strict Content Security Policy and `no-store` on API responses;
+- an audit log with no amounts in it;
+- download and erase endpoints for the customer's data, under the Nigeria Data Protection Act.
 
 ## Not built (by design)
 
-- No real core-banking, KYC/BVN or credit integration. These become adapters behind the same API.
+- No live connection to Zenith systems. Adapters for sign-in, core banking, messaging and product requests are built and tested against a stand-in (see [INTEGRATION.md](INTEGRATION.md)). KYC/BVN and credit decisioning stay with the bank.
 - No LLM in the decision path. Explanations are generated from the engine's own facts, so product terms can't be invented.
 - No model training. Feedback is stored to support a governed Phase 2 model later.

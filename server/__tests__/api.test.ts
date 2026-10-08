@@ -347,3 +347,40 @@ describe("integrations in demo mode (step 4)", () => {
     expect(r.statusCode).toBe(401);
   });
 });
+
+describe("data rights (step 5)", () => {
+  it("exports everything MoneyMap holds, as a downloadable document", async () => {
+    const h = await session("CUST_SARAH");
+    await app.inject({ method: "POST", url: "/api/v1/demo/events", headers: h, payload: { type: "income" } });
+    const r = await app.inject({ method: "GET", url: "/api/v1/customer/data-export", headers: h });
+    expect(r.headers["content-disposition"]).toMatch(/attachment; filename="moneymap-data-CUST_SARAH.json"/);
+    const d = r.json();
+    expect(d.consent.current.income_patterns).toBe(true);
+    expect(d.goals).toHaveLength(1);
+    expect(d.recommendations).toHaveLength(1);
+    expect(d.messages).toHaveLength(1);
+  });
+
+  it("erases it on request and keeps only the fact of erasure in the audit log", async () => {
+    const h = await session("CUST_SARAH");
+    await app.inject({ method: "POST", url: "/api/v1/demo/events", headers: h, payload: { type: "income" } });
+    expect((await app.inject({ method: "DELETE", url: "/api/v1/customer/data", headers: h })).statusCode).toBe(204);
+    const d = (await app.inject({ method: "GET", url: "/api/v1/customer/data-export", headers: h })).json();
+    expect(d.goals).toHaveLength(0);
+    expect(d.recommendations).toHaveLength(0);
+    expect(d.messages).toHaveLength(0);
+    expect(Object.values(d.consent.current).some(Boolean)).toBe(false);
+    expect(d.statement.lines).toBe(db.getTransactions("CUST_SARAH").filter((t) => !t.id.startsWith("LIVE_")).length);
+    const audit = (await app.inject({ method: "GET", url: "/api/v1/admin/audit", headers: await admin() })).json();
+    expect(audit.entries.some((e: { action: string }) => e.action === "customer.data_erased")).toBe(true);
+  });
+
+  it("the audit log holds no amounts or bank narrations", async () => {
+    const h = await session("CUST_SARAH");
+    await app.inject({ method: "POST", url: "/api/v1/demo/events", headers: h, payload: { type: "income" } });
+    await app.inject({ method: "POST", url: "/api/v1/demo/events", headers: h, payload: { type: "windfall" } });
+    const audit = (await app.inject({ method: "GET", url: "/api/v1/admin/audit", headers: await admin() })).json();
+    const text = audit.entries.map((e: { detail: string }) => e.detail).join("\n");
+    expect(text).not.toMatch(/450000|900000|₦|BRIGHTPATH|Brightpath/);
+  });
+});

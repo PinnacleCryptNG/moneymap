@@ -132,6 +132,7 @@ export type Action =
   | { type: "set_product_status"; productId: string; status: Product["status"] }
   | { type: "simulate_event"; event: "income" | "windfall" }
   | { type: "read_notification"; id: string }
+  | { type: "erase_my_data" }
   | { type: "set_simulate_error"; value: boolean }
   | { type: "reset" }
   | { type: "hydrate"; snapshot: ServerSnapshot }
@@ -230,7 +231,7 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         goals,
         activeGoalId: existing ? state.activeGoalId : goal.id,
-        audit: audit(state, "customer", existing ? "goal.updated" : "goal.created", goal.label),
+        audit: audit(state, "customer", existing ? "goal.updated" : "goal.created", goal.type),
       };
     }
     case "delete_goal": {
@@ -322,6 +323,9 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case "simulate_event":
       return simulateEvent(state, action.event, now);
+    case "erase_my_data":
+      // Right to erasure: everything MoneyMap holds for this customer goes; only the fact is audited.
+      return { ...state, ...customerState(state.customerId), audit: audit(state, "customer", "customer.data_erased", state.customerId) };
     case "read_notification":
       return { ...state, notifications: state.notifications.map((n) => (n.id === action.id && !n.read_at ? { ...n, read_at: now } : n)) };
     case "set_simulate_error":
@@ -409,7 +413,7 @@ function simulateEvent(state: AppState, kind: "income" | "windfall", now: string
     recommendations,
     notifications: notification ? [notification, ...state.notifications] : state.notifications,
     triggerEvents: [event, ...state.triggerEvents],
-    audit: audit(state, "system", `trigger.${decision.outcome}`, `${trigger.description} ${trigger.amount} — ${decision.reason}`),
+    audit: audit(state, "system", `trigger.${decision.outcome}`, `${trigger.type}${notification ? ` → ${notification.product_name} (${notification.kind})` : ""}`),
   };
 }
 

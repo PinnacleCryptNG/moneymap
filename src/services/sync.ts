@@ -63,6 +63,9 @@ export async function syncAction(action: Action, prev: AppState): Promise<Server
     case "simulate_event":
       await http.simulateEvent(action.event);
       break;
+    case "erase_my_data":
+      await http.eraseMyData();
+      break;
     case "read_notification":
       await http.readNotification(action.id);
       break;

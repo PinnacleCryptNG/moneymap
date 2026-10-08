@@ -11,3 +11,9 @@ services:
         generateValue: true
       - key: NODE_ENV
         value: production
+      # Hackathon demo: Demo Mode stays on. A bank deployment sets MONEYMAP_MODE=production (see docs/SECURITY.md).
+      - key: MONEYMAP_MODE
+        value: demo
+      # Render terminates TLS in front of the app; trust its X-Forwarded-For for per-client rate limits.
+      - key: MONEYMAP_TRUST_PROXY
+        value: "1"

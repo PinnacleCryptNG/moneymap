@@ -24,9 +24,9 @@ export interface AdapterConfig {
   feedSecret?: string | null;
 }
 
-export function createAdapters(c: AdapterConfig = {}): Adapters {
+export function createAdapters(c: AdapterConfig = {}, opts: { allowDemoTokens?: boolean } = {}): Adapters {
   return {
-    identity: identityAdapter(c.oidc ?? null),
+    identity: identityAdapter(c.oidc ?? null, opts),
     coreBanking: coreBankingAdapter(c.coreBanking ?? null),
     notifications: notificationAdapter(c.notifications ?? null),
     applications: applicationAdapter(c.applications ?? null),
@@ -41,7 +41,7 @@ export function adapterConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Adap
   return {
     oidc:
       env.ZENITH_OIDC_ISSUER && env.ZENITH_OIDC_AUDIENCE && env.ZENITH_OIDC_JWKS_URL
-        ? { issuer: env.ZENITH_OIDC_ISSUER, audience: env.ZENITH_OIDC_AUDIENCE, jwksUrl: env.ZENITH_OIDC_JWKS_URL, customerClaim: env.ZENITH_OIDC_CUSTOMER_CLAIM }
+        ? { issuer: env.ZENITH_OIDC_ISSUER, audience: env.ZENITH_OIDC_AUDIENCE, jwksUrl: env.ZENITH_OIDC_JWKS_URL, customerClaim: env.ZENITH_OIDC_CUSTOMER_CLAIM, adminRole: env.ZENITH_OIDC_ADMIN_ROLE }
         : null,
     coreBanking: http("ZENITH_CORE_BANKING"),
     notifications: http("ZENITH_NOTIFICATIONS"),

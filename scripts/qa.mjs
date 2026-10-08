@@ -53,7 +53,8 @@ const server = REMOTE
   ? spawn("node", ["--disable-warning=ExperimentalWarning", "--import", "tsx", "server/index.ts"], {
       stdio: "ignore",
       detached: true,
-      env: { ...process.env, PORT: String(PORT), MONEYMAP_DB: ":memory:", NODE_ENV: "test" },
+      // QA opens many demo sessions in quick succession; lift the per-IP sign-in limit for this local run only.
+      env: { ...process.env, PORT: String(PORT), MONEYMAP_DB: ":memory:", NODE_ENV: "test", MONEYMAP_RATE_LIMIT_AUTH: "1000" },
     })
   : spawn("npx", ["vite", "preview", "--port", String(PORT), "--strictPort"], { stdio: "ignore", detached: true });
 // Kill the whole process group (npx spawns children) so the port is free for the next run.
@@ -216,6 +217,20 @@ try {
       check(`Tolu bonus → no message badge (${size})`, await page.getByRole("link", { name: "Messages", exact: true }).isVisible());
       await go(page, "/app/inbox");
       check(`Tolu: bonus noticed, nothing sent (${size})`, await page.getByText("Checked — nothing sent", { exact: true }).isVisible());
+    });
+
+    // 3c. Step 5: data rights — download a copy, then erase.
+    await session(`Data rights (${size})`, viewport, async (page) => {
+      await demoLoad(page, "Sarah");
+      await go(page, "/app/settings");
+      const [file] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download my data" }).click()]);
+      check(`Data export downloaded (${size})`, file.suggestedFilename() === "moneymap-data-CUST_SARAH.json");
+      await page.getByRole("button", { name: "Delete my MoneyMap data" }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "Delete everything" }).click();
+      await page.waitForTimeout(900);
+      check(`After erasure, left the app (${size})`, !/#\/app/.test(page.url()), page.url());
+      await go(page, "/app");
+      check(`After erasure, onboarding starts again (${size})`, /#\/onboarding/.test(page.url()));
     });
 
     // 4. Tolu: no match, then a new goal changes the answer.
