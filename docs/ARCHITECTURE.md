@@ -19,8 +19,8 @@ MoneyMap is a decision layer that sits beside Zenith's existing systems. It does
                                         │  products · product_versions ·               │
                                         │  recommendations · applications · audit_log  │
                                         └──────────────────────────────────────────────┘
-                     Future adapters: core banking (transactions) · product catalogue CMS ·
-                     credit decisioning · notifications · Zenith app sign-in (OIDC)
+                     Adapters (server/adapters, see INTEGRATION.md): Zenith sign-in (OIDC) ·
+                     core banking statement + signed webhooks · messaging · product requests
 ```
 
 ## From transactions to signals (`src/engine/ledger.ts`)
@@ -76,6 +76,7 @@ The same pure functions run in the server and in the browser-only demo.
 | ProductInteraction | `product_interactions`, `applications` | viewed / explored / eligibility_checked / requested |
 | ModelVersion | `model_versions` | Weights and thresholds for each engine version used |
 | AuditLog | `audit_log` | Hash-chained |
+| (step 4) | `deliveries`, `statement_syncs`; `applications.reference`, `handoff_status` | Message delivery attempts, statement refreshes, the bank's reference for each request |
 | (step 3) | `trigger_events`, `notifications` | Every trigger with its outcome and reason; messages sent to the customer |
 
 ## Endpoints
@@ -92,6 +93,7 @@ Interactive docs (OpenAPI / Swagger) are at **`/docs`** on the running server.
 | Products | `GET /products`, `GET /products/:id`, `POST /products/:id/eligibility-check`, `POST /products/:id/apply`, `GET /applications` |
 | Preferences | `GET /preferences`, `PATCH /preferences` |
 | Events | `POST /events/transactions` (bank feed, admin token), `POST /demo/events` (`income` or `windfall`), `GET /events`, `GET /notifications`, `POST /notifications/:id/read` |
+| Integrations | `GET /admin/integrations`, `POST /admin/integrations/retry`, `GET /customer/statement-sync` — see [INTEGRATION.md](INTEGRATION.md) |
 | Bank (admin) | `GET /admin/metrics`, `GET /admin/recommendations`, `GET /admin/audit`, `GET /admin/events`, `GET /admin/model-versions`, `PATCH /admin/products/:id` |
 
 All paths are under `/api/v1`. Request bodies are schema-validated and unknown fields are rejected. Errors come back as `{ "error", "message" }`.

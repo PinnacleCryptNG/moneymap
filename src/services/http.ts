@@ -102,6 +102,21 @@ const goalBody = (g: Partial<GoalDraft> & { active?: boolean }) => ({
   ...(g.active !== undefined && { active: g.active }),
 });
 
+export interface IntegrationStatus {
+  adapters: {
+    name: "identity" | "core_banking" | "notifications" | "applications";
+    mode: "demo" | "http";
+    target: string | null;
+    calls: number;
+    failures: number;
+    lastOkAt: string | null;
+    lastError: { at: string; message: string } | null;
+  }[];
+  inbound_feed: { signed_webhooks: boolean; admin_token: boolean };
+  deliveries: { notification_id: string; customer_id: string; status: string; attempts: number; channel: string | null; reference: string | null; last_error: string | null; updated_at: string; title: string | null }[];
+  pending_handoffs: number;
+}
+
 export interface ServerSnapshot {
   permissions: Permissions;
   consentLog: ConsentRecord[];
@@ -188,6 +203,8 @@ export const http = {
       integrity: { intact: boolean; entries: number; brokenAt: number | null };
       entries: { seq: number; at: string; actor: string; action: string; detail: string; hash: string }[];
     }>("GET", "/admin/audit", undefined, "admin"),
+  adminIntegrations: () => call<IntegrationStatus>("GET", "/admin/integrations", undefined, "admin"),
+  adminRetry: () => call<{ delivered: number; handed_off: number }>("POST", "/admin/integrations/retry", {}, "admin"),
   setProductStatus: (productId: string, status: Product["status"]) => call("PATCH", `/admin/products/${productId}`, { status }, "admin"),
   resetAll: () => call("POST", "/demo/reset", {}, "admin"),
 };

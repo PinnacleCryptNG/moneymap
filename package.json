@@ -16,7 +16,8 @@
     "dev:server": "node --disable-warning=ExperimentalWarning --watch --import tsx server/index.ts",
     "build:server-app": "tsc -b && VITE_API_MODE=http vite build",
     "typecheck:server": "tsc --noEmit -p server",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "mock:zenith": "node --disable-warning=ExperimentalWarning --import tsx server/mockZenith.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.1",

@@ -99,7 +99,10 @@ export function ProductDetailPage() {
 
         <div className="mt-6 flex flex-wrap gap-3">
           {application ? (
-            <Badge tone="green" icon={<CircleCheck size={14} aria-hidden />}>Request submitted {formatDate(application.at)}</Badge>
+            <Badge tone="green" icon={<CircleCheck size={14} aria-hidden />}>
+              Request submitted {formatDate(application.at)}
+              {application.reference ? ` · Zenith ref ${application.reference}` : application.handoff === "pending" ? " · sending to Zenith" : ""}
+            </Badge>
           ) : (
             <Button disabled={Boolean(blocked) || p.status !== "active"} onClick={() => setConfirmOpen(true)}>
               {p.category === "financing" ? "Start a request" : "Request to open"}

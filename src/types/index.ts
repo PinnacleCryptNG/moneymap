@@ -298,6 +298,10 @@ export interface Application {
   productName: string;
   at: string;
   status: "submitted";
+  /** Zenith's reference once the request has been handed to the bank (step 4). */
+  reference?: string;
+  /** "pending" = the bank couldn't be reached yet; MoneyMap retries. */
+  handoff?: "handed_off" | "pending";
 }
 
 export interface AuditEntry {

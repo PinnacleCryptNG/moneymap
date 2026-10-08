@@ -3,6 +3,7 @@ import { AdminShell } from "../../components/navigation/AdminShell";
 import { AppShell } from "../../components/navigation/AppShell";
 import { ActivityPage } from "../../pages/activity/ActivityPage";
 import { AdminAuditPage } from "../../pages/admin/AdminAuditPage";
+import { AdminIntegrationsPage } from "../../pages/admin/AdminIntegrationsPage";
 import { AdminEnginePage } from "../../pages/admin/AdminEnginePage";
 import { AdminOverviewPage } from "../../pages/admin/AdminOverviewPage";
 import { AdminProductsPage } from "../../pages/admin/AdminProductsPage";
@@ -39,6 +40,7 @@ export function AppRoutes() {
         <Route index element={<AdminOverviewPage />} />
         <Route path="products" element={<AdminProductsPage />} />
         <Route path="engine" element={<AdminEnginePage />} />
+        <Route path="integrations" element={<AdminIntegrationsPage />} />
         <Route path="audit" element={<AdminAuditPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

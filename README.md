@@ -35,6 +35,8 @@ npm run smoke -- https://…   # quick API-level check of a deployed site (15 ch
 npm run build:embed        # single-page build for embedded viewers → dist-embed/moneymap.html
 ```
 
+How MoneyMap connects to Zenith's systems (sign-in, core banking, messaging, product requests), and how to switch each from demo to live, is in [`docs/INTEGRATION.md`](docs/INTEGRATION.md).
+
 The API is described in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and is browsable at `/docs` on the running server.
 
 `npm run qa` drives every core path at phone and desktop sizes: onboarding with invalid input, recommendation, Why?, product action, feedback, dismissal, both demo customers, a goal change, consent withdrawal, "skip for now", the error and empty states, and the bank view. It fails on any broken screen, JavaScript error or sideways scroll. If Playwright can't find a browser, set `PW_CHROMIUM` to a Chromium executable.

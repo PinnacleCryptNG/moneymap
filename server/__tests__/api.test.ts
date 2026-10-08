@@ -321,3 +321,29 @@ describe("event triggers (step 3)", () => {
     expect(t.transactions[0].id).not.toMatch(/^LIVE_/);
   });
 });
+
+describe("integrations in demo mode (step 4)", () => {
+  it("every adapter reports demo mode, and requests get a demo reference", async () => {
+    const h = await session("CUST_SARAH");
+    const a = (await app.inject({ method: "POST", url: "/api/v1/products/ZEN_SAVE4ME/apply", headers: h, payload: {} })).json();
+    expect(a).toMatchObject({ handoff: "handed_off", reference: expect.stringMatching(/^DEMO-/) });
+    const status = (await app.inject({ method: "GET", url: "/api/v1/admin/integrations", headers: await admin() })).json();
+    expect(status.adapters.map((x: { name: string; mode: string }) => `${x.name}:${x.mode}`)).toEqual([
+      "identity:demo",
+      "core_banking:demo",
+      "notifications:demo",
+      "applications:demo",
+    ]);
+    expect(status.inbound_feed.signed_webhooks).toBe(false);
+  });
+
+  it("refuses signed webhooks when no secret is configured", async () => {
+    const r = await app.inject({
+      method: "POST",
+      url: "/api/v1/events/transactions",
+      headers: { "content-type": "application/json", "x-moneymap-signature": "sha256=00", "x-moneymap-timestamp": String(Math.floor(Date.now() / 1000)) },
+      payload: JSON.stringify({ customer_id: "CUST_SARAH", narration: "POS/X/LA NG", amount: 100, direction: "debit", channel: "pos" }),
+    });
+    expect(r.statusCode).toBe(401);
+  });
+});

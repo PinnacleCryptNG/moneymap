@@ -11,7 +11,9 @@ import { decideOnTrigger, detectTrigger, simulatedCredit } from "../src/engine/t
 import { GOAL_LIMITS } from "../src/utils/goals";
 import { DEMO_TODAY } from "../src/data/ledgers";
 import { categorise, describe } from "../src/engine/ledger";
-import { issueToken, verifyToken, type Session } from "./auth";
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { createAdapters, type Adapters } from "./adapters";
+import { issueToken, type Session } from "./auth";
 import { publicProfile, redactProfile } from "./consent";
 import { PERMISSION_KEYS, type Db } from "./db";
 
@@ -59,8 +61,22 @@ interface GoalBody {
 
 const fail = (reply: FastifyReply, code: number, error: string, message: string) => reply.code(code).send({ error, message });
 
-export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
+export async function buildApp(db: Db, opts: { logger?: boolean; adapters?: Adapters; retryEveryMs?: number } = {}) {
   const app = Fastify({ logger: opts.logger ?? false, ajv: { customOptions: { removeAdditional: false, coerceTypes: false } } });
+  const adapters = opts.adapters ?? createAdapters();
+
+  // Keep the raw JSON body: signed bank webhooks are verified over the exact bytes that were sent.
+  app.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
+    (req as FastifyRequest & { rawBody?: string }).rawBody = body as string;
+    if (body === "") return done(null, undefined);
+    try {
+      done(null, JSON.parse(body as string));
+    } catch {
+      const err = new Error("Body is not valid JSON.") as Error & { statusCode: number };
+      err.statusCode = 400;
+      done(err, undefined);
+    }
+  });
 
   await app.register(cors, { origin: true });
   await app.register(swagger, {
@@ -81,6 +97,7 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
         { name: "Recommendations" },
         { name: "Products" },
         { name: "Preferences" },
+        { name: "Integrations", description: "Step 4: adapters to Zenith systems (identity, core banking, notifications, product requests). Demo mode simulates them." },
         { name: "Events", description: "Step 3: new account activity triggers a fresh look. MoneyMap messages the customer only when the engine finds a strong reason." },
         { name: "Bank (admin)" },
       ],
@@ -91,7 +108,7 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
   app.decorateRequest("session", null);
   app.addHook("onRequest", async (req) => {
     const h = req.headers.authorization;
-    req.session = verifyToken(h?.startsWith("Bearer ") ? h.slice(7) : undefined);
+    req.session = await adapters.identity.verify(h?.startsWith("Bearer ") ? h.slice(7) : undefined);
   });
 
   const customerOnly = async (req: FastifyRequest, reply: FastifyReply) => {
@@ -161,6 +178,7 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
         db.setPermissions(c.id, Object.fromEntries(PERMISSION_KEYS.map((k) => [k, true])) as Permissions);
         if (c.defaultGoal) db.createGoal(c.id, c.defaultGoal);
       }
+      await syncStatement(c.id);
       db.audit("system", "demo.session_started", `${c.id}${req.body.preload ? " (preloaded)" : ""}`);
       return { token: issueToken(c.id, "customer"), customer_id: c.id };
     },
@@ -338,9 +356,10 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
    * A new statement line arrives. Store it; if it is a trigger (income landing, a windfall), run the engine
    * again with that context and decide whether it deserves a message. Every trigger is logged with its outcome.
    */
-  function ingest(customerId: string, t: Omit<RawTransaction, "id">) {
+  async function ingest(customerId: string, t: Omit<RawTransaction, "id">, externalId?: string) {
     const before = db.getCustomer(customerId)!;
-    const transaction = db.addTransaction(customerId, t);
+    const transaction = db.addTransaction(customerId, t, externalId);
+    if (!transaction) return { duplicate: true, transaction: null, trigger: null, event: null, notification: null };
     const trigger = detectTrigger(transaction, before);
     if (!trigger) {
       db.audit("system", "transaction.received", `${customerId}: ${describe(transaction)} ${transaction.amount} (no trigger)`);
@@ -370,27 +389,126 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
       };
     }
     const saved = db.recordTrigger(customerId, transaction.id, trigger, decision, draft);
+    if (saved.notification) await deliver(saved.notification);
     return { transaction, trigger, event: saved.event, notification: saved.notification };
   }
 
+  // ---------------- Integrations (step 4) ----------------
+  /** Hand a message to the bank's messaging platform. A failure never blocks MoneyMap; the retry sweep tries again. */
+  async function deliver(n: AppNotification) {
+    try {
+      const r = await adapters.notifications.deliver(n);
+      db.recordDelivery(n.id, n.customer_id, { status: "delivered", ...r });
+    } catch (e) {
+      db.recordDelivery(n.id, n.customer_id, { status: "failed", error: (e as Error).message });
+    }
+  }
+
+  async function handOff(applicationId: string, customerId: string, productId: string) {
+    const product = db.getProduct(productId);
+    if (!product) return;
+    const rec = db.listRecommendations(customerId).find((r) => r.product_id === productId);
+    try {
+      const { reference } = await adapters.applications.submit({ applicationId, customerId, product, recommendationId: rec?.id ?? null });
+      db.setApplicationHandoff(applicationId, { status: "handed_off", reference });
+    } catch (e) {
+      db.setApplicationHandoff(applicationId, { status: "pending", error: (e as Error).message });
+    }
+  }
+
+  /** Refresh the stored statement from core banking. On failure MoneyMap keeps deciding on the last good copy. */
+  async function syncStatement(customerId: string) {
+    const from = new Date(`${DEMO_TODAY}T00:00:00Z`);
+    from.setUTCMonth(from.getUTCMonth() - 6, 1);
+    try {
+      const lines = await adapters.coreBanking.statement(customerId, from.toISOString().slice(0, 10));
+      if (lines === null) return db.recordSync(customerId, "demo", db.getTransactions(customerId).length);
+      db.recordSync(customerId, "ok", db.mergeStatement(customerId, lines));
+    } catch (e) {
+      db.recordSync(customerId, "failed", 0, (e as Error).message);
+    }
+  }
+
+  const MAX_ATTEMPTS = 5;
+  /** Retry failed message deliveries and product requests the bank hasn't acknowledged yet. */
+  async function retryPending() {
+    let delivered = 0;
+    let handedOff = 0;
+    for (const d of db.listDeliveries({ status: "failed", maxAttempts: MAX_ATTEMPTS })) {
+      const n = db.getNotification(d.notification_id);
+      if (!n) continue;
+      await deliver(n);
+      if (db.listDeliveries().find((x) => x.notification_id === n.id)?.status === "delivered") delivered++;
+    }
+    for (const a of db.pendingHandoffs()) {
+      await handOff(a.id, a.customer_id, a.product_id);
+      if (db.listApplications(a.customer_id).find((x) => x.id === a.id)?.handoff === "handed_off") handedOff++;
+    }
+    return { delivered, handed_off: handedOff };
+  }
+  if (opts.retryEveryMs) {
+    const timer = setInterval(() => void retryPending().catch(() => undefined), opts.retryEveryMs);
+    timer.unref();
+    app.addHook("onClose", async () => clearInterval(timer));
+  }
+
+  app.get(
+    "/api/v1/admin/integrations",
+    { preHandler: adminOnly, schema: { tags: ["Integrations"], summary: "Each Zenith adapter: mode, target host, health; recent message deliveries", ...secured } },
+    async () => ({
+      adapters: [adapters.identity, adapters.coreBanking, adapters.notifications, adapters.applications].map((a) => ({ name: a.name, ...a.health })),
+      inbound_feed: { signed_webhooks: Boolean(adapters.feedSecret), admin_token: true },
+      deliveries: db.listDeliveries(),
+      pending_handoffs: db.pendingHandoffs().length,
+    }),
+  );
+
+  app.post(
+    "/api/v1/admin/integrations/retry",
+    { preHandler: adminOnly, schema: { tags: ["Integrations"], summary: "Retry failed deliveries and pending product requests now", ...secured } },
+    async () => retryPending(),
+  );
+
+  app.get(
+    "/api/v1/customer/statement-sync",
+    { preHandler: customerOnly, schema: { tags: ["Integrations"], summary: "When the statement was last refreshed from core banking", ...secured } },
+    async (req) => ({ mode: adapters.coreBanking.health.mode, last: db.lastSync(req.session!.sub) }),
+  );
+
   const CHANNELS: Channel[] = ["transfer", "pos", "web", "bill_payment", "atm", "standing_order"];
-  app.post<{ Body: { customer_id: string; date?: string; narration: string; amount: number; direction: "credit" | "debit"; channel: Channel } }>(
+  /** A bank webhook is accepted with an admin token, or signed: HMAC-SHA256 over "<timestamp>.<raw body>". */
+  const signedFeedOrAdmin = async (req: FastifyRequest, reply: FastifyReply) => {
+    const sig = req.headers["x-moneymap-signature"];
+    if (typeof sig !== "string") return adminOnly(req, reply);
+    const ts = Number(req.headers["x-moneymap-timestamp"]);
+    const raw = (req as FastifyRequest & { rawBody?: string }).rawBody ?? "";
+    if (!adapters.feedSecret) return fail(reply, 401, "unauthorized", "Signed webhooks aren't enabled on this server.");
+    if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > 300) return fail(reply, 401, "unauthorized", "Webhook timestamp missing or more than 5 minutes off.");
+    const expected = Buffer.from(`sha256=${createHmac("sha256", adapters.feedSecret).update(`${ts}.${raw}`).digest("hex")}`);
+    const given = Buffer.from(sig);
+    if (expected.length !== given.length || !timingSafeEqual(expected, given)) return fail(reply, 401, "unauthorized", "Webhook signature doesn't match.");
+  };
+
+  app.post<{ Body: { customer_id: string; external_id?: string; date?: string; narration: string; amount: number; direction: "credit" | "debit"; channel: Channel } }>(
     "/api/v1/events/transactions",
     {
-      preHandler: adminOnly,
+      preHandler: signedFeedOrAdmin,
       schema: {
         tags: ["Events"],
         summary: "Core-banking feed: a new transaction for a customer",
         description:
           "In production a core-banking adapter would post each new statement line here. " +
           "Money landing (salary, allowance) or a one-off credit of at least half the usual monthly income is a trigger: " +
-          "the engine runs again, and the customer gets a message only if there is a strong match, they share income data, and no message was sent in the last 7 days.",
+          "the engine runs again, and the customer gets a message only if there is a strong match, they share income data, and no message was sent in the last 7 days. " +
+          "Authenticate with an admin token, or sign the request: header x-moneymap-timestamp (unix seconds) and x-moneymap-signature = sha256=HMAC-SHA256(secret, timestamp + '.' + raw body). " +
+          "Send the bank's own transaction id as external_id so a repeated delivery is ignored.",
         body: {
           type: "object",
           required: ["customer_id", "narration", "amount", "direction", "channel"],
           additionalProperties: false,
           properties: {
             customer_id: { type: "string" },
+            external_id: { type: "string", pattern: "^[A-Za-z0-9_-]{1,64}$" },
             date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
             narration: { type: "string", minLength: 3, maxLength: 140 },
             amount: { type: "integer", minimum: 1, maximum: 1000000000 },
@@ -402,9 +520,10 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
       },
     },
     async (req, reply) => {
-      const { customer_id, date, ...rest } = req.body;
+      const { customer_id, external_id, date, ...rest } = req.body;
       if (!db.getCustomer(customer_id)) return fail(reply, 404, "not_found", "No such customer.");
-      return reply.code(201).send(ingest(customer_id, { ...rest, date: date ?? DEMO_TODAY }));
+      const r = await ingest(customer_id, { ...rest, date: date ?? DEMO_TODAY }, external_id);
+      return reply.code(r.duplicate ? 200 : 201).send(r);
     },
   );
 
@@ -423,7 +542,7 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
     async (req, reply) => {
       const id = req.session!.sub;
       // The id is replaced when the line is stored.
-      return reply.code(201).send(ingest(id, simulatedCredit(req.body.type, db.getCustomer(id)!, DEMO_TODAY, "pending")));
+      return reply.code(201).send(await ingest(id, simulatedCredit(req.body.type, db.getCustomer(id)!, DEMO_TODAY, "pending")));
     },
   );
 
@@ -586,7 +705,9 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
       const p = db.getProduct(req.params.id);
       if (!p) return fail(reply, 404, "not_found", "Product not found.");
       if (p.status !== "active") return fail(reply, 409, "inactive", "This product isn't currently available.");
-      return reply.code(201).send(db.createApplication(req.session!.sub, p));
+      const created = db.createApplication(req.session!.sub, p);
+      await handOff(created.id, req.session!.sub, p.product_id);
+      return reply.code(201).send(db.listApplications(req.session!.sub).find((a) => a.id === created.id));
     },
   );
 

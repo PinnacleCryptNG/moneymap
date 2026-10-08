@@ -1,4 +1,4 @@
-import { ArrowLeft, BarChart3, History, Package, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, BarChart3, History, Package, Plug, SlidersHorizontal } from "lucide-react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { LogoMark } from "../shared/Logo";
 import { SyncBanner } from "../shared/SyncBanner";
@@ -7,6 +7,7 @@ const NAV = [
   { to: "/admin", label: "Overview", icon: BarChart3, end: true },
   { to: "/admin/products", label: "Product catalogue", icon: Package },
   { to: "/admin/engine", label: "Engine & rules", icon: SlidersHorizontal },
+  { to: "/admin/integrations", label: "Integrations", icon: Plug },
   { to: "/admin/audit", label: "Audit log", icon: History },
 ];
 

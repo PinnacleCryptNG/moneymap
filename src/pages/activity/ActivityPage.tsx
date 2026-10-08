@@ -55,9 +55,12 @@ export function ActivityPage() {
               <li key={a.id} className="flex items-center justify-between gap-3 py-3">
                 <div>
                   <p className="font-semibold">{a.productName}</p>
-                  <p className="text-small text-navy-500">{formatDateTime(a.at)}</p>
+                  <p className="text-small text-navy-500">
+                    {formatDateTime(a.at)}
+                    {a.reference && <> · Zenith reference <span className="font-mono">{a.reference}</span></>}
+                  </p>
                 </div>
-                <Badge tone="green">Submitted</Badge>
+                {a.handoff === "pending" ? <Badge tone="amber">Sending to Zenith</Badge> : <Badge tone="green">With Zenith</Badge>}
               </li>
             ))}
           </ul>

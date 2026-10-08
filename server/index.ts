@@ -4,11 +4,16 @@
 import fastifyStatic from "@fastify/static";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { adapterConfigFromEnv, createAdapters } from "./adapters";
 import { buildApp } from "./app";
 import { openDb } from "./db";
 
 const db = openDb();
-const app = await buildApp(db, { logger: process.env.NODE_ENV !== "test" });
+const adapters = createAdapters(adapterConfigFromEnv());
+const app = await buildApp(db, { logger: process.env.NODE_ENV !== "test", adapters, retryEveryMs: 60_000 });
+for (const a of [adapters.identity, adapters.coreBanking, adapters.notifications, adapters.applications]) {
+  console.log(`adapter ${a.name}: ${a.health.mode}${a.health.target ? ` → ${a.health.target}` : ""}`);
+}
 
 const dist = resolve(process.env.MONEYMAP_DIST ?? "dist");
 if (existsSync(dist)) {

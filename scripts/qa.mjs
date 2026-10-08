@@ -158,6 +158,7 @@ try {
       await page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click();
       await page.getByText(/Request submitted/).waitFor({ timeout: 3000 });
       check(`Product action recorded (${size})`, true);
+      check(`Zenith reference shown (${size})`, await page.getByText(/Zenith ref DEMO-/).isVisible());
       await go(page, "/app/recommendation");
       await page.waitForTimeout(900);
       check(`Requested product not recommended again (${size})`, !(await page.getByRole("heading", { name: "SAVE4ME" }).isVisible()));
@@ -276,10 +277,13 @@ try {
 
     // 7. Bank view and governance.
     await session(`Bank view (${size})`, viewport, async (page) => {
-      for (const path of ["/admin", "/admin/products", "/admin/engine", "/admin/audit"]) {
+      for (const path of ["/admin", "/admin/products", "/admin/engine", "/admin/integrations", "/admin/audit"]) {
         await go(page, path);
         await healthy(page, `${path} (${size})`);
       }
+      await go(page, "/admin/integrations");
+      await page.getByRole("heading", { name: "Core banking" }).waitFor({ timeout: 5000 });
+      check(`Integrations: four adapters listed (${size})`, (await page.getByText("Simulated", { exact: true }).count()) === 4);
       await go(page, "/admin/products");
       await page.getByRole("switch", { name: "SAVE4ME active" }).click();
       await demoLoad(page, "Sarah");

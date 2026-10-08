@@ -65,6 +65,23 @@ CREATE TABLE IF NOT EXISTS trigger_events (
   notification_id TEXT,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS deliveries (
+  notification_id TEXT PRIMARY KEY,
+  customer_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'delivered', 'failed')),
+  attempts INTEGER NOT NULL DEFAULT 0,
+  channel TEXT,
+  reference TEXT,
+  last_error TEXT,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS statement_syncs (
+  customer_id TEXT PRIMARY KEY,
+  synced_at TEXT NOT NULL,
+  status TEXT NOT NULL,
+  lines INTEGER NOT NULL,
+  error TEXT
+);
 CREATE TABLE IF NOT EXISTS notifications (
   id TEXT PRIMARY KEY,
   customer_id TEXT NOT NULL REFERENCES customers(id),
@@ -301,6 +318,14 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
   const db = new DatabaseSync(path);
   db.exec("PRAGMA foreign_keys = ON;");
   db.exec(SCHEMA);
+  // Step 4 columns on a database created before them.
+  for (const col of ["reference TEXT", "handoff_status TEXT", "handoff_error TEXT"]) {
+    try {
+      db.exec(`ALTER TABLE applications ADD COLUMN ${col}`);
+    } catch {
+      /* already there */
+    }
+  }
 
   const tx = <T>(fn: () => T): T => {
     db.exec("BEGIN");
@@ -416,6 +441,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
   function resetCustomer(customerId: string) {
     tx(() => {
       db.prepare("DELETE FROM recommendation_feedback WHERE customer_id = ?").run(customerId);
+      db.prepare("DELETE FROM deliveries WHERE customer_id = ?").run(customerId);
       db.prepare("DELETE FROM notifications WHERE customer_id = ?").run(customerId);
       db.prepare("DELETE FROM trigger_events WHERE customer_id = ?").run(customerId);
       // Lines that arrived live (bank feed or Demo Mode) go; the seeded six-month statement stays.
@@ -436,7 +462,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
 
   function resetAll() {
     tx(() => {
-      for (const t of ["notifications", "trigger_events", "recommendation_feedback", "recommendation_reasons", "product_interactions", "transaction_signals", "financial_profiles", "product_eligibility", "model_versions", "recommendations", "applications", "transactions", "goals", "consent_events", "consents", "preferences", "product_versions", "products", "customers", "audit_log"]) {
+      for (const t of ["deliveries", "statement_syncs", "notifications", "trigger_events", "recommendation_feedback", "recommendation_reasons", "product_interactions", "transaction_signals", "financial_profiles", "product_eligibility", "model_versions", "recommendations", "applications", "transactions", "goals", "consent_events", "consents", "preferences", "product_versions", "products", "customers", "audit_log"]) {
         db.exec(`DELETE FROM ${t}`);
       }
     });
@@ -444,8 +470,13 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
   }
 
   // ---- Live transactions and triggers (step 3) ----
-  function addTransaction(customerId: string, t: Omit<RawTransaction, "id">): RawTransaction {
-    const row: RawTransaction = { ...t, id: id("LIVE") };
+  /**
+   * Store a line that arrived live. With the bank's own transaction id, a repeated delivery is
+   * recognised and ignored (returns null) — webhooks are retried and may arrive twice.
+   */
+  function addTransaction(customerId: string, t: Omit<RawTransaction, "id">, externalId?: string): RawTransaction | null {
+    const row: RawTransaction = { ...t, id: externalId ? `LIVE_X_${externalId}` : id("LIVE") };
+    if (externalId && db.prepare("SELECT 1 FROM transactions WHERE id = ?").get(row.id)) return null;
     db.prepare("INSERT INTO transactions (id, customer_id, date, narration, amount, direction, channel) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
       row.id, customerId, row.date, row.narration, row.amount, row.direction, row.channel,
     );
@@ -475,6 +506,80 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
     return { event: listTriggerEvents(customerId).find((e) => e.id === eventId)!, notification: n };
   }
 
+  // ---- Statement sync and message delivery (step 4) ----
+  /** Merge lines fetched from core banking into the stored statement. Returns how many were new. */
+  function mergeStatement(customerId: string, lines: RawTransaction[]): number {
+    let added = 0;
+    tx(() => {
+      for (const t of lines) {
+        added += Number(db
+          .prepare("INSERT OR IGNORE INTO transactions (id, customer_id, date, narration, amount, direction, channel) VALUES (?, ?, ?, ?, ?, ?, ?)")
+          .run(`BANK_${t.id}`, customerId, t.date, t.narration, t.amount, t.direction, t.channel).changes);
+      }
+    });
+    return added;
+  }
+
+  function recordSync(customerId: string, status: "ok" | "failed" | "demo", lines: number, error: string | null = null) {
+    db.prepare(
+      "INSERT INTO statement_syncs (customer_id, synced_at, status, lines, error) VALUES (?, ?, ?, ?, ?) ON CONFLICT(customer_id) DO UPDATE SET synced_at = excluded.synced_at, status = excluded.status, lines = excluded.lines, error = excluded.error",
+    ).run(customerId, now(), status, lines, error);
+  }
+
+  function lastSync(customerId: string) {
+    return (db.prepare("SELECT synced_at, status, lines, error FROM statement_syncs WHERE customer_id = ?").get(customerId) as
+      | { synced_at: string; status: string; lines: number; error: string | null }
+      | undefined) ?? null;
+  }
+
+  function recordDelivery(notificationId: string, customerId: string, r: { status: "delivered" | "failed"; channel?: string; reference?: string; error?: string }) {
+    db.prepare(
+      `INSERT INTO deliveries (notification_id, customer_id, status, attempts, channel, reference, last_error, updated_at) VALUES (?, ?, ?, 1, ?, ?, ?, ?)
+       ON CONFLICT(notification_id) DO UPDATE SET status = excluded.status, attempts = deliveries.attempts + 1, channel = COALESCE(excluded.channel, deliveries.channel),
+         reference = COALESCE(excluded.reference, deliveries.reference), last_error = excluded.last_error, updated_at = excluded.updated_at`,
+    ).run(notificationId, customerId, r.status, r.channel ?? null, r.reference ?? null, r.error ?? null, now());
+    audit("system", `notification.${r.status}`, `${customerId}: ${notificationId}${r.reference ? ` → ${r.reference}` : ""}${r.error ? ` (${r.error})` : ""}`);
+  }
+
+  function listDeliveries(filter: { status?: "failed"; maxAttempts?: number } = {}) {
+    return db
+      .prepare(
+        `SELECT d.notification_id, d.customer_id, d.status, d.attempts, d.channel, d.reference, d.last_error, d.updated_at, n.title
+         FROM deliveries d LEFT JOIN notifications n ON n.id = d.notification_id
+         ${filter.status ? "WHERE d.status = ? AND d.attempts < ?" : ""} ORDER BY d.updated_at DESC LIMIT 50`,
+      )
+      .all(...(filter.status ? [filter.status, filter.maxAttempts ?? 99] : [])) as {
+      notification_id: string;
+      customer_id: string;
+      status: string;
+      attempts: number;
+      channel: string | null;
+      reference: string | null;
+      last_error: string | null;
+      updated_at: string;
+      title: string | null;
+    }[];
+  }
+
+  function getNotification(notificationId: string) {
+    return listNotificationsWhere("id = ?", notificationId)[0] ?? null;
+  }
+
+  function pendingHandoffs() {
+    return db.prepare("SELECT id, customer_id, product_id FROM applications WHERE handoff_status = 'pending' ORDER BY at").all() as {
+      id: string;
+      customer_id: string;
+      product_id: string;
+    }[];
+  }
+
+  function setApplicationHandoff(applicationId: string, r: { status: "handed_off" | "pending"; reference?: string; error?: string }) {
+    db.prepare("UPDATE applications SET handoff_status = ?, reference = COALESCE(?, reference), handoff_error = ? WHERE id = ?").run(
+      r.status, r.reference ?? null, r.error ?? null, applicationId,
+    );
+    audit("system", `application.${r.status}`, `${applicationId}${r.reference ? ` → ${r.reference}` : ""}${r.error ? ` (${r.error})` : ""}`);
+  }
+
   function listTriggerEvents(customerId?: string): TriggerEvent[] {
     const rows = (customerId
       ? db.prepare("SELECT * FROM trigger_events WHERE customer_id = ? ORDER BY created_at DESC, rowid DESC").all(customerId)
@@ -494,7 +599,11 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
   }
 
   function listNotifications(customerId: string): AppNotification[] {
-    return (db.prepare("SELECT * FROM notifications WHERE customer_id = ? ORDER BY created_at DESC, rowid DESC").all(customerId) as Record<string, string | null>[]).map(
+    return listNotificationsWhere("customer_id = ?", customerId);
+  }
+
+  function listNotificationsWhere(where: string, arg: string): AppNotification[] {
+    return (db.prepare(`SELECT * FROM notifications WHERE ${where} ORDER BY created_at DESC, rowid DESC`).all(arg) as Record<string, string | null>[]).map(
       (r) => ({
         id: String(r.id),
         customer_id: String(r.customer_id),
@@ -756,13 +865,23 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
   }
 
   function listApplications(customerId: string): Application[] {
-    return (db.prepare("SELECT id, product_id, product_name, status, at FROM applications WHERE customer_id = ? ORDER BY at DESC").all(customerId) as {
+    return (db.prepare("SELECT id, product_id, product_name, status, at, reference, handoff_status FROM applications WHERE customer_id = ? ORDER BY at DESC").all(customerId) as {
       id: string;
       product_id: string;
       product_name: string;
       status: "submitted";
       at: string;
-    }[]).map((r) => ({ id: r.id, productId: r.product_id, productName: r.product_name, status: r.status, at: r.at }));
+      reference: string | null;
+      handoff_status: Application["handoff"] | null;
+    }[]).map((r) => ({
+      id: r.id,
+      productId: r.product_id,
+      productName: r.product_name,
+      status: r.status,
+      at: r.at,
+      ...(r.reference ? { reference: r.reference } : {}),
+      ...(r.handoff_status ? { handoff: r.handoff_status } : {}),
+    }));
   }
 
   // ---- Product interactions ----
@@ -906,6 +1025,14 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
     getCustomer,
     listCustomers,
     addTransaction,
+    mergeStatement,
+    recordSync,
+    lastSync,
+    recordDelivery,
+    listDeliveries,
+    getNotification,
+    setApplicationHandoff,
+    pendingHandoffs,
     recordTrigger,
     listTriggerEvents,
     listNotifications,

@@ -300,7 +300,8 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         applications: [
-          { id: uid("APP"), productId: action.productId, productName: action.productName, at: now, status: "submitted" },
+          // Browser-only demo: the hand-off to Zenith is simulated, like the server's demo adapter.
+          { id: uid("APP"), productId: action.productId, productName: action.productName, at: now, status: "submitted", handoff: "handed_off", reference: `DEMO-${uid("R").slice(-8).toUpperCase()}` },
           ...state.applications,
         ],
         recommendations: state.recommendations.map((r) =>
