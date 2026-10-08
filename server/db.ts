@@ -416,7 +416,11 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
     return db.prepare("SELECT id, date, narration, amount, direction, channel FROM transactions WHERE customer_id = ? ORDER BY date, id").all(customerId) as unknown as RawTransaction[];
   }
 
+  // Only current demo customers are served, even if an older database still holds retired ones.
+  const DEMO_IDS = new Set(PERSONA_BASES.map((b) => b.id));
+
   function getPersonaBase(customerId: string): PersonaBase | null {
+    if (!DEMO_IDS.has(customerId)) return null;
     const row = db.prepare("SELECT profile_json FROM customers WHERE id = ?").get(customerId) as { profile_json: string } | undefined;
     return row ? (JSON.parse(row.profile_json) as PersonaBase) : null;
   }
@@ -428,7 +432,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
   }
 
   function listCustomers(): PersonaBase[] {
-    return (db.prepare("SELECT profile_json FROM customers ORDER BY id").all() as { profile_json: string }[]).map((r) => JSON.parse(r.profile_json));
+    return (db.prepare("SELECT profile_json FROM customers ORDER BY id").all() as { profile_json: string }[]).map((r) => JSON.parse(r.profile_json) as PersonaBase).filter((c) => DEMO_IDS.has(c.id));
   }
 
   // ---- Consent ----

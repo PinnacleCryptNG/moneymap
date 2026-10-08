@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { runEngine } from "..";
-import { CUSTOMERS, PERSONA_BASES, profileFromLedger } from "../../data/customers";
+import { COHORT_ARCHETYPES, CUSTOMERS, PERSONA_BASES, profileFromLedger } from "../../data/customers";
 import { buildLedger } from "../../data/ledgers";
 import { SEED_PRODUCTS } from "../../data/products";
 import type { RawTransaction } from "../../types";
@@ -35,7 +35,7 @@ describe("categoriser (narration only)", () => {
 });
 
 describe("figures derived from each persona's statement", () => {
-  const by = (id: string) => CUSTOMERS.find((c) => c.id === id)!;
+  const by = (id: string) => COHORT_ARCHETYPES.find((c) => c.id === id)!;
   const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
   it("Sarah: ₦450,000 salary around the 25th, ₦280,000 spending", () => {
@@ -54,8 +54,8 @@ describe("figures derived from each persona's statement", () => {
     expect(t.savingMonths).toBe(6);
   });
 
-  it("Daniel: allowance on the 1st and school payments", () => {
-    const d = by("CUST_DANIEL");
+  it("student profile: allowance on the 1st and school payments", () => {
+    const d = by("ARCH_STUDENT");
     expect(d.incomeSource).toBe("allowance");
     expect(d.incomeDay).toBe(1);
     expect(d.schoolPayments).toBe(true);

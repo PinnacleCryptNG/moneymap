@@ -61,12 +61,12 @@ describe("recommendations", () => {
   });
 
   it("returns the stored explanation exactly as shown", async () => {
-    const h = await session("CUST_DANIEL");
+    const h = await session("CUST_SARAH");
     const r = (await recommend(h)).json();
-    expect(r.decision.product.id).toBe("ZEN_ASPIRE");
+    expect(r.decision.product.id).toBe("ZEN_SAVE4ME");
     const ex = (await app.inject({ method: "GET", url: `/api/v1/recommendations/${r.recommendation.id}/explanation`, headers: h })).json();
     expect(ex.explanation.whyItFits).toBe(r.engine.explanation.whyItFits);
-    expect(ex.trace.at(-1).result).toMatch(/Aspire/);
+    expect(ex.trace.at(-1).result).toMatch(/SAVE4ME/);
   });
 
   it("Tolu gets no recommendation and nothing is stored", async () => {
@@ -79,8 +79,8 @@ describe("recommendations", () => {
   it("customers can't read each other's recommendations", async () => {
     const sarah = await session("CUST_SARAH");
     const rec = (await recommend(sarah)).json().recommendation;
-    const daniel = await session("CUST_DANIEL");
-    expect((await app.inject({ method: "GET", url: `/api/v1/recommendations/${rec.id}`, headers: daniel })).statusCode).toBe(404);
+    const tolu = await session("CUST_TOLU");
+    expect((await app.inject({ method: "GET", url: `/api/v1/recommendations/${rec.id}`, headers: tolu })).statusCode).toBe(404);
   });
 
   it("'Not relevant' feedback stops the product coming back", async () => {
@@ -181,20 +181,20 @@ describe("PRD entities", () => {
   });
 
   it("serves the MoneyMap preview without issuing a recommendation", async () => {
-    const h = await session("CUST_DANIEL");
+    const h = await session("CUST_SARAH");
     const preview = (await app.inject({ method: "GET", url: "/api/v1/customer/moneymap?requested_more=true", headers: h })).json();
-    expect(preview.top.product.product_id).toBe("ZEN_ASPIRE");
+    expect(preview.top.product.product_id).toBe("ZEN_SAVE4ME");
     expect((await app.inject({ method: "GET", url: "/api/v1/recommendations", headers: h })).json()).toHaveLength(0);
   });
 });
 
 describe("transactions (step 2)", () => {
   it("serves the statement with raw narration, category and readable description", async () => {
-    const h = await session("CUST_DANIEL");
+    const h = await session("CUST_TOLU");
     const r = (await app.inject({ method: "GET", url: "/api/v1/customer/transactions?limit=500", headers: h })).json();
-    expect(r.count).toBeGreaterThan(100);
-    const allowance = r.transactions.find((t: { narration: string }) => /ALLOWANCE/.test(t.narration));
-    expect(allowance).toMatchObject({ direction: "credit", category: "allowance" });
+    expect(r.count).toBeGreaterThan(50);
+    const salary = r.transactions.find((t: { narration: string }) => /SALARY/.test(t.narration));
+    expect(salary).toMatchObject({ direction: "credit", category: "salary" });
     expect(r.transactions.some((t: { category: string }) => t.category === "education")).toBe(true);
   });
 

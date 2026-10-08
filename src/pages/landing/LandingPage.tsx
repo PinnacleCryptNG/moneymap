@@ -81,9 +81,9 @@ export function LandingPage() {
 
         <section className="mx-auto max-w-3xl px-4 py-12 md:px-6" aria-labelledby="demo-title">
           <p className="eyebrow mb-2">See it decide</p>
-          <h2 id="demo-title" className="mb-2">Three customers, three different answers</h2>
+          <h2 id="demo-title" className="mb-2">Two customers, two different answers</h2>
           <p className="mb-6 text-navy-500">
-            Synthetic Nigerian customers — no real data. One gets a savings plan, one gets a student account, and one gets nothing, because nothing would genuinely help.
+            Synthetic Nigerian customers — no real data. One gets a savings plan. The other gets nothing, because nothing would genuinely help.
           </p>
           <DemoPersonaList />
         </section>

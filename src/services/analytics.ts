@@ -2,7 +2,7 @@
 // Builds a deterministic population of anonymised customers from the demo archetypes, then runs
 // the real decision engine over four weekly decision rounds per customer, feeding simulated
 // responses back in. Fatigue, caps and no-match outcomes are therefore genuine engine behaviour.
-import { CUSTOMERS } from "../data/customers";
+import { COHORT_ARCHETYPES } from "../data/customers";
 import { DEFAULT_PREFERENCES } from "../data/defaults";
 import { runEngine, toRecord, isDismissal, REMIND_LATER_DAYS } from "../engine";
 import type {
@@ -32,7 +32,7 @@ export const ROUNDS = 4;
 /** Cohort groups, named by who they are rather than by the demo persona. */
 const GROUP: Record<string, string> = {
   CUST_SARAH: "Salaried, building savings",
-  CUST_DANIEL: "Students",
+  ARCH_STUDENT: "Students",
   CUST_TOLU: "Established, already well served",
 };
 
@@ -137,7 +137,7 @@ export function simulateCohort(products: Product[], size = 240, seed = 8): Cohor
   const segment = new Map<string, { customers: number; matched: number; tally: Map<string, number> }>();
 
   for (let i = 0; i < size; i++) {
-    const base = CUSTOMERS[i % CUSTOMERS.length];
+    const base = COHORT_ARCHETYPES[i % COHORT_ARCHETYPES.length];
     const customer = perturb(base, r, i);
     const permissions: Permissions = {
       account_activity: r() < 0.9,

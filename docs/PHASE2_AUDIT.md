@@ -39,9 +39,9 @@ The test for every line: *does this make MoneyMap clearer, more useful, more cre
 |---|---|
 | Zenith product catalogue | SAVE4ME, Aspire, EazySave, Personal Loan, Asset Finance, Credit Card. Only publicly documented facts, each with a source. No invented rates, fees, limits, approval guarantees or processing times (Phase 2 §10). |
 | Verified vs. assumption labelling | Every product separates **published information** from **MoneyMap suitability rules (prototype)**. |
-| Daniel — student persona | Student profile → Aspire (Phase 2 §9). |
+| Student profile | Student → Aspire (Phase 2 §9). Later dropped as a demo account to keep the demo to two customers; it remains in the bank view's synthetic cohort and the unit tests. |
 | No-match customer | A customer whose existing setup already fits, so no recommendation is made. |
-| Demo Mode | Team-only switcher that loads Sarah, Daniel or the no-match customer instantly (Phase 2 §15). |
+| Demo Mode | Team-only switcher that loads Sarah or the no-match customer (Tolu) instantly (Phase 2 §15). |
 | QA script | Automated walk through every path at phone and desktop sizes, invalid inputs, consent states and feedback (Phase 2 Phase H). |
 
 ## REMOVE — doesn't strengthen the proposition

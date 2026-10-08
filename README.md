@@ -37,7 +37,7 @@ npm run build:embed        # single-page build for embedded viewers → dist-emb
 
 The API is described in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and is browsable at `/docs` on the running server.
 
-`npm run qa` drives every core path at phone and desktop sizes: onboarding with invalid input, recommendation, Why?, product action, feedback, dismissal, all three personas, a goal change, consent withdrawal, "skip for now", the error and empty states, and the bank view. It fails on any broken screen, JavaScript error or sideways scroll. If Playwright can't find a browser, set `PW_CHROMIUM` to a Chromium executable.
+`npm run qa` drives every core path at phone and desktop sizes: onboarding with invalid input, recommendation, Why?, product action, feedback, dismissal, both demo customers, a goal change, consent withdrawal, "skip for now", the error and empty states, and the bank view. It fails on any broken screen, JavaScript error or sideways scroll. If Playwright can't find a browser, set `PW_CHROMIUM` to a Chromium executable.
 
 ## Demo Mode
 
@@ -46,8 +46,9 @@ Every screen has a small **Demo** button (bottom left). It is for the presenting
 | Persona | Situation | MoneyMap outcome |
 |---|---|---|
 | **Sarah, 24** — Saver | ₦450,000 salary, ₦280,000 spending, ₦170,000 left monthly. Goal: ₦1,000,000 in 12 months. Savings sit in her everyday account. | **SAVE4ME**, 95% match. Suggested ₦83,333/month. EazySave is ruled out (its reported balance cap is below her goal) and Aspire too (student-only). |
-| **Daniel, 21** — Student | 300-level student at UNILAG, monthly allowance plus gigs, almost fully cashless, on a basic savings account. | **Aspire**, 95% match. Personal Loan fails its published salary-account condition. |
 | **Tolu, 35** — No match | Senior accountant already saving through SAVE4ME, already has a credit card, no new goal. | **No recommendation.** "Nothing needs your attention." |
+
+There are two demo customers: one gets a recommendation and one doesn't. The engine still handles students (Aspire): a student profile is part of the bank view's synthetic cohort and is covered by the unit tests.
 
 Live demo extra: give Tolu a new goal ("Buy a car", ₦6,000,000 in 12 months) and the answer changes to **Asset Finance**. Give Sarah "Pay my rent", ₦1,800,000 in 3 months, and it changes to **Personal Loan**, with SAVE4ME locked out because she needs the money soon.
 

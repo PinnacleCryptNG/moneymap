@@ -28,26 +28,6 @@ const PERSONAS: Omit<PersonaBase, "openingBalance">[] = [
     },
   },
   {
-    id: "CUST_DANIEL",
-    name: "Daniel Eze",
-    firstName: "Daniel",
-    age: 21,
-    segment: "student",
-    occupation: "300-level Computer Science student",
-    city: "Akoka, Lagos",
-    persona: "The Young Customer",
-    story: "Lives on a monthly allowance plus small design gigs, pays for almost everything by card and app — still on a basic savings account his parents opened.",
-    expectedOutcome: "Student banking → Aspire",
-    existingProducts: ["savings_account", "debit_card"],
-    defaultGoal: {
-      type: "everyday",
-      label: "Manage my everyday money",
-      amount: 0,
-      timelineMonths: 12,
-      saved: 0,
-    },
-  },
-  {
     id: "CUST_TOLU",
     name: "Tolu Adebayo",
     firstName: "Tolu",
@@ -74,8 +54,39 @@ export function profileFromLedger(base: PersonaBase, ledger = buildLedger(base.i
   return deriveProfile(base, ledger, { today: DEMO_TODAY, openingBalance: base.openingBalance });
 }
 
-export const PERSONA_BASES: PersonaBase[] = PERSONAS.map((p) => ({ ...p, openingBalance: openingBalance(p.id) }));
+/**
+ * Not a demo account: a student profile used only to seed the bank view's synthetic cohort,
+ * so the bank-wide metrics include students alongside the two demo customers.
+ */
+const STUDENT_ARCHETYPE: Omit<PersonaBase, "openingBalance"> =
+  {
+    id: "ARCH_STUDENT",
+    name: "Daniel Eze",
+    firstName: "Daniel",
+    age: 21,
+    segment: "student",
+    occupation: "300-level Computer Science student",
+    city: "Akoka, Lagos",
+    persona: "The Young Customer",
+    story: "Lives on a monthly allowance plus small design gigs, pays for almost everything by card and app — still on a basic savings account his parents opened.",
+    expectedOutcome: "Student banking → Aspire",
+    existingProducts: ["savings_account", "debit_card"],
+    defaultGoal: {
+      type: "everyday",
+      label: "Manage my everyday money",
+      amount: 0,
+      timelineMonths: 12,
+      saved: 0,
+    },
+  };
+
+const withBalance = (p: Omit<PersonaBase, "openingBalance">): PersonaBase => ({ ...p, openingBalance: openingBalance(p.id) });
+
+/** The demo customers: Sarah (gets SAVE4ME) and Tolu (gets nothing). */
+export const PERSONA_BASES: PersonaBase[] = PERSONAS.map(withBalance);
 export const CUSTOMERS: CustomerProfile[] = PERSONA_BASES.map((b) => profileFromLedger(b));
+/** Profiles the bank view's synthetic cohort is generated from. */
+export const COHORT_ARCHETYPES: CustomerProfile[] = [...CUSTOMERS, profileFromLedger(withBalance(STUDENT_ARCHETYPE))];
 
 export function getCustomer(id: string): CustomerProfile {
   return CUSTOMERS.find((c) => c.id === id) ?? CUSTOMERS[0];

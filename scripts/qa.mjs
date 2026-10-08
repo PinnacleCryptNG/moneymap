@@ -181,17 +181,13 @@ try {
       check(`Shows the held-back state (${size})`, await page.getByText("Nothing needs your attention.").isVisible());
     });
 
-    // 3. Daniel: student → Aspire.
-    await session(`Daniel (${size})`, viewport, async (page) => {
-      await demoLoad(page, "Daniel");
-      check(`Daniel next move is Aspire (${size})`, await page.getByRole("heading", { name: "Aspire" }).isVisible());
-      await go(page, "/app/recommendation");
-      await page.getByText("We found a strong match.").waitFor({ timeout: 5000 });
-      check(`Daniel recommendation is Aspire (${size})`, await page.getByRole("heading", { name: "Aspire" }).isVisible());
+    // 3. Tolu's map: figures read from his transactions.
+    await session(`Account reading (${size})`, viewport, async (page) => {
+      await demoLoad(page, "Tolu");
       await go(page, "/app/map");
       check(`Account read from transactions (${size})`, await page.getByRole("heading", { name: "How MoneyMap read your account" }).isVisible());
-      check(`Allowance detected from narrations (${size})`, await page.getByText("Allowance", { exact: true }).first().isVisible());
-      check(`Raw bank narrations shown (${size})`, (await page.getByText(/^(POS|WEB|NIP|AIRTEL)/).count()) > 0);
+      check(`Salary detected from narrations (${size})`, await page.getByText(/Salary/).first().isVisible());
+      check(`Raw bank narrations shown (${size})`, (await page.getByText(/^(POS|WEB|NIP|SAVE4ME|GLO)/).count()) > 0);
     });
 
     // 4. Tolu: no match, then a new goal changes the answer.

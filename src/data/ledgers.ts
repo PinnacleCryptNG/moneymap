@@ -121,7 +121,7 @@ const PLANS: Record<string, { openingBalance: number; plan: LedgerPlan }> = {
       ],
     },
   },
-  CUST_DANIEL: {
+  ARCH_STUDENT: {
     openingBalance: 15000,
     plan: {
       seed: 21,

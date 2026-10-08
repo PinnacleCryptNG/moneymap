@@ -41,9 +41,8 @@ await api("POST", `/recommendations/${recId}/feedback`, { feedback: "not_relevan
 const s2 = await api("POST", "/recommendations", {}, sarah);
 check("Not relevant → not shown again", s2.json?.decision?.product?.id !== "ZEN_SAVE4ME", s2.json?.decision?.status);
 
-const daniel = await session("CUST_DANIEL");
-const d = await api("POST", "/recommendations", {}, daniel);
-check("Daniel → Aspire", d.json?.decision?.product?.id === "ZEN_ASPIRE", `${d.json?.decision?.match_score}% match`);
+const customers = await api("GET", "/demo/customers");
+check("Two demo customers", customers.json?.length === 2, customers.json?.map?.((c) => c.name).join(", "));
 
 const tolu = await session("CUST_TOLU");
 const n = await api("POST", "/recommendations", {}, tolu);
@@ -52,8 +51,9 @@ await api("POST", "/goals", { type: "major_expense", expense_kind: "vehicle", la
 check("Tolu + car goal → Asset Finance", (await api("POST", "/recommendations", {}, tolu)).json?.decision?.product?.id === "ZEN_ASSET_FINANCE");
 
 const off = { account_activity: false, income_patterns: false, spending_patterns: false, existing_products: false, financial_goals: false };
-await api("POST", "/consent", off, daniel);
-const ctx = await api("GET", "/customer/financial-context", null, daniel);
+const sarah2 = await session("CUST_SARAH");
+await api("POST", "/consent", off, sarah2);
+const ctx = await api("GET", "/customer/financial-context", null, sarah2);
 check("Withdrawn consent → no signals", ctx.json?.context?.signals?.length === 0);
 check("No token → refused", (await api("POST", "/recommendations", {})).status === 401);
 check("Invalid goal → rejected", (await api("POST", "/goals", { type: "save_more", label: "x", amount: 5, timeline_months: 12 }, tolu)).status === 400);

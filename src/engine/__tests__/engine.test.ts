@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calculateRecommendationScore, runEngine, toRecord, type EngineInput } from "..";
-import { CUSTOMERS, getCustomer } from "../../data/customers";
+import { COHORT_ARCHETYPES, CUSTOMERS } from "../../data/customers";
 import { SEED_PRODUCTS } from "../../data/products";
 import { goalPlan } from "../plan";
 import type { FinancialGoal, GoalDraft, Permissions, Preferences, RecommendationRecord } from "../../types";
@@ -30,7 +30,7 @@ function goalFrom(d: GoalDraft): FinancialGoal {
 }
 
 function input(id: string, overrides: Partial<EngineInput> = {}): EngineInput {
-  const customer = getCustomer(id);
+  const customer = COHORT_ARCHETYPES.find((c) => c.id === id)!;
   const goal = customer.defaultGoal ? goalFrom(customer.defaultGoal) : null;
   return { customer, permissions: ALL, goal, preferences: PREFS, products: SEED_PRODUCTS, history: [], now: NOW, ...overrides };
 }
@@ -90,8 +90,8 @@ describe("Phase 2 personas", () => {
     expect(byId(r, "ZEN_ASPIRE").exclusion?.rule).toBe("ineligible");
   });
 
-  it("Daniel (student) gets Aspire; Personal Loan fails the published salary-account condition", () => {
-    const r = runEngine(input("CUST_DANIEL"));
+  it("a student (cohort profile) gets Aspire; Personal Loan fails the published salary-account condition", () => {
+    const r = runEngine(input("ARCH_STUDENT"));
     expect(r.status).toBe("recommended");
     expect(r.top?.product.product_id).toBe("ZEN_ASPIRE");
     expect(r.top!.score).toBeGreaterThanOrEqual(80);
@@ -164,7 +164,7 @@ describe("hard rules", () => {
 
   it("never recommends an inactive product", () => {
     const products = SEED_PRODUCTS.map((p) => (p.product_id === "ZEN_ASPIRE" ? { ...p, status: "inactive" as const } : p));
-    const r = runEngine(input("CUST_DANIEL", { products }));
+    const r = runEngine(input("ARCH_STUDENT", { products }));
     expect(r.top?.product.product_id).not.toBe("ZEN_ASPIRE");
   });
 
