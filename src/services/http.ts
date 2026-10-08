@@ -154,6 +154,10 @@ export const http = {
 
   recommend: (requestedMore: boolean) =>
     call<{ recommendation: RecommendationRecord | null; engine: EngineResult }>("POST", "/recommendations", { requested_more: requestedMore }),
+  viewProduct: (productId: string) => call("GET", `/products/${productId}`),
+  preview: (requestedMore: boolean) => call<EngineResult>("GET", `/customer/moneymap${requestedMore ? "?requested_more=true" : ""}`),
+  explanation: (recId: string) =>
+    call<{ explanation: EngineResult["explanation"]; trace: EngineResult["trace"] }>("GET", `/recommendations/${recId}/explanation`),
   feedback: (recId: string, feedback: FeedbackType) => call("POST", `/recommendations/${recId}/feedback`, { feedback }),
   explored: (recId: string) => call("POST", `/recommendations/${recId}/explored`, {}),
   eligibility: (productId: string) =>

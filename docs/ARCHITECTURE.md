@@ -31,6 +31,25 @@ MoneyMap is a decision layer that sits beside Zenith's existing systems. It does
 4. **Record.** If a product is recommended, a record is stored with `customer_id, product_id, need, match_score, reasons, timing_reason, eligibility_status, model_version, created_at, status`. The explanation, trace and score factors are stored with it, so `GET /recommendations/:id/explanation` returns exactly what the customer saw. Repeated calls reuse the open recommendation instead of creating duplicates.
 5. **Audit.** The issue is written to the audit log. Each entry includes a SHA-256 hash of the previous one; `GET /admin/audit` re-verifies the whole chain and reports the first altered entry.
 
+## Data model (PRD §39)
+
+| PRD entity | Table | Notes |
+|---|---|---|
+| Customer | `customers` | Synthetic profiles |
+| Consent | `consents`, `consent_events` | Current state plus full change history |
+| FinancialProfile | `financial_profiles` | Recomputed on every engine run; values the customer hasn't permitted are stored as empty |
+| TransactionSignal | `transaction_signals` | Replaced on every run, so a withdrawn permission removes its signals at once |
+| FinancialGoal | `goals` | One active goal per customer |
+| Product | `products`, `product_versions` | Every status change creates a new version |
+| ProductEligibility | `product_eligibility` | Each condition marked `published` (with source) or `guardrail` (MoneyMap's own rule) |
+| Recommendation | `recommendations` | Phase 2 record fields, plus the explanation, trace and score factors as shown |
+| RecommendationReason | `recommendation_reasons` | The "what influenced this" items, in order |
+| RecommendationFeedback | `recommendation_feedback` | Every feedback event, not just the latest |
+| CustomerPreference | `preferences` | Categories and frequency |
+| ProductInteraction | `product_interactions`, `applications` | viewed / explored / eligibility_checked / requested |
+| ModelVersion | `model_versions` | Weights and thresholds for each engine version used |
+| AuditLog | `audit_log` | Hash-chained |
+
 ## Endpoints
 
 Interactive docs (OpenAPI / Swagger) are at **`/docs`** on the running server.
@@ -38,13 +57,13 @@ Interactive docs (OpenAPI / Swagger) are at **`/docs`** on the running server.
 | Area | Endpoints |
 |---|---|
 | Demo & auth | `POST /demo/session` (customer, optional preload), `POST /auth/demo-login` (bank admin), `GET /demo/customers`, `POST /demo/reset` |
-| Customer | `GET /customer/profile`, `GET /customer/financial-context` |
+| Customer | `GET /customer/profile`, `GET /customer/financial-context`, `GET /customer/moneymap` (screen preview, issues nothing), `GET /customer/signals` |
 | Consent | `GET /consent`, `POST /consent` |
 | Goals | `GET /goals`, `POST /goals`, `PATCH /goals/:id`, `DELETE /goals/:id` |
 | Recommendations | `POST /recommendations`, `GET /recommendations`, `GET /recommendations/:id`, `GET /recommendations/:id/explanation`, `POST /recommendations/:id/feedback`, `POST /recommendations/:id/explored` |
 | Products | `GET /products`, `GET /products/:id`, `POST /products/:id/eligibility-check`, `POST /products/:id/apply`, `GET /applications` |
 | Preferences | `GET /preferences`, `PATCH /preferences` |
-| Bank (admin) | `GET /admin/metrics`, `GET /admin/recommendations`, `GET /admin/audit`, `PATCH /admin/products/:id` |
+| Bank (admin) | `GET /admin/metrics`, `GET /admin/recommendations`, `GET /admin/audit`, `GET /admin/model-versions`, `PATCH /admin/products/:id` |
 
 All paths are under `/api/v1`. Request bodies are schema-validated and unknown fields are rejected. Errors come back as `{ "error", "message" }`.
 
@@ -52,7 +71,7 @@ All paths are under `/api/v1`. Request bodies are schema-validated and unknown f
 
 | Mode | Build | Where the engine runs | Used for |
 |---|---|---|---|
-| **API mode** | `npm run build:server-app` then `npm start` | Server. The app syncs every change to the API and reloads from it. | Real deployment; judges can call the API at `/docs` |
+| **API mode** | `npm run build:server-app` then `npm start` | Server. Every change is written to the API; every screen reads its decision from it (`/customer/moneymap`, `/recommendations`, stored explanations). | Real deployment; judges can call the API at `/docs` |
 | **Local mode** | `npm run build` / `npm run build:embed` | Browser, with data kept in the browser | The single-page hosted demo, and an offline fallback if venue internet fails |
 
 The engine is the same code in both modes. That's why it's pure TypeScript with no UI or server dependencies.

@@ -4,7 +4,7 @@ import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import { DEFAULT_PREFERENCES } from "../src/data/defaults";
-import { REMIND_LATER_DAYS, runEngine, toApiResponse, toRecord, type EngineResult } from "../src/engine";
+import { MODEL_VERSION, REMIND_LATER_DAYS, THRESHOLDS, WEIGHTS, runEngine, toApiResponse, toRecord, type EngineResult } from "../src/engine";
 import { simulateCohort } from "../src/services/analytics";
 import type { FeedbackType, GoalDraft, Permissions, Preferences } from "../src/types";
 import { GOAL_LIMITS } from "../src/utils/goals";
@@ -99,10 +99,12 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
   };
   const secured = { security: [{ bearer: [] }] };
 
-  /** Run the decision engine for a customer on consent-filtered data. */
+  db.registerModelVersion(MODEL_VERSION, WEIGHTS, THRESHOLDS, "Transparent rules + weighted scoring (prototype weights, PRD §28).");
+
+  /** Run the decision engine for a customer on consent-filtered data, and persist the resulting profile and signals. */
   function evaluate(customerId: string, requestedMore = false): EngineResult {
     const permissions = db.getPermissions(customerId);
-    return runEngine({
+    const result = runEngine({
       customer: redactProfile(db.getCustomer(customerId)!, permissions),
       permissions,
       goal: db.activeGoal(customerId),
@@ -111,6 +113,8 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
       history: db.listRecommendations(customerId),
       requestedMore,
     });
+    db.saveFinancialSnapshot(customerId, result.context);
+    return result;
   }
 
   const goalOut = (g: ReturnType<Db["listGoals"]>[number]) => ({
@@ -193,6 +197,34 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
     async (req) => {
       const r = evaluate(req.session!.sub);
       return { context: r.context, needs: r.needs };
+    },
+  );
+
+  app.get<{ Querystring: { requested_more?: "true" | "false" } }>(
+    "/api/v1/customer/moneymap",
+    {
+      preHandler: customerOnly,
+      schema: {
+        tags: ["Customer"],
+        summary: "The MoneyMap screen: where you are, your next move, your goal",
+        description: "Runs the engine as a preview. It does not issue or store a recommendation — use POST /recommendations for that.",
+        querystring: { type: "object", additionalProperties: false, properties: { requested_more: { type: "string", enum: ["true", "false"] } } },
+        ...secured,
+      },
+    },
+    async (req) => evaluate(req.session!.sub, req.query.requested_more === "true"),
+  );
+
+  app.get(
+    "/api/v1/customer/signals",
+    {
+      preHandler: customerOnly,
+      schema: { tags: ["Customer"], summary: "Stored financial profile and transaction signals (only from permitted data)", ...secured },
+    },
+    async (req) => {
+      const id = req.session!.sub;
+      evaluate(id);
+      return { financial_profile: db.getFinancialProfile(id), signals: db.getSignals(id) };
     },
   );
 
@@ -292,7 +324,7 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
       let record = null;
       if (rec && result.top) {
         const open = db.listRecommendations(id).find((r) => r.product_id === rec.product_id && !r.feedback && r.status !== "applied");
-        record = open ?? db.insertRecommendation(rec, { explanation: result.explanation, trace: result.trace, factors: result.top.factors });
+        record = open ?? db.insertRecommendation(rec, { explanation: result.explanation!, trace: result.trace, factors: result.top.factors });
       }
       return {
         recommendation: record,
@@ -314,7 +346,11 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
   app.get<{ Params: { id: string } }>(
     "/api/v1/recommendations/:id",
     { preHandler: customerOnly, schema: { tags: ["Recommendations"], summary: "One stored recommendation", ...secured } },
-    async (req, reply) => ownRec(req)?.record ?? fail(reply, 404, "not_found", "Recommendation not found."),
+    async (req, reply) => {
+      const r = ownRec(req);
+      if (!r) return fail(reply, 404, "not_found", "Recommendation not found.");
+      return { ...r.record, reason_details: db.recommendationReasons(r.record.id), feedback_history: db.feedbackHistory(r.record.id) };
+    },
   );
 
   app.get<{ Params: { id: string } }>(
@@ -357,6 +393,7 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
     async (req, reply) => {
       if (!ownRec(req)) return fail(reply, 404, "not_found", "Recommendation not found.");
       db.setRecommendationStatus(req.params.id, "explored");
+      db.recordInteraction(req.session!.sub, ownRec(req)!.record.product_id, "explored", req.params.id);
       return { status: "explored" };
     },
   );
@@ -364,8 +401,15 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
   // ---------------- Products ----------------
   app.get("/api/v1/products", { schema: { tags: ["Products"], summary: "Product catalogue with published facts and sources" } }, async () => db.listProducts());
 
-  app.get<{ Params: { id: string } }>("/api/v1/products/:id", { schema: { tags: ["Products"], summary: "One product" } }, async (req, reply) =>
-    db.getProduct(req.params.id) ?? fail(reply, 404, "not_found", "Product not found."),
+  app.get<{ Params: { id: string } }>(
+    "/api/v1/products/:id",
+    { schema: { tags: ["Products"], summary: "One product, with its eligibility conditions (records a view when signed in)" } },
+    async (req, reply) => {
+      const p = db.getProduct(req.params.id);
+      if (!p) return fail(reply, 404, "not_found", "Product not found.");
+      if (req.session?.role === "customer" && db.getCustomer(req.session.sub)) db.recordInteraction(req.session.sub, p.product_id, "viewed");
+      return { ...p, eligibility_conditions: db.productEligibility(p.product_id) };
+    },
   );
 
   app.post<{ Params: { id: string } }>(
@@ -382,6 +426,7 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
     async (req, reply) => {
       const e = evaluate(req.session!.sub, true).ranked.find((x) => x.product.product_id === req.params.id);
       if (!e) return fail(reply, 404, "not_found", "Product not found.");
+      db.recordInteraction(req.session!.sub, e.product.product_id, "eligibility_checked");
       return { product_id: e.product.product_id, eligibility: e.eligibility, match_score: e.score, band: e.band, exclusion: e.exclusion ?? null, why_not: e.whyNot ?? null };
     },
   );
@@ -467,9 +512,14 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
             }, {}),
           ).map(([product, needs]) => ({ product, needs })),
         },
+        interactions: db.interactionCounts(),
         cohort: simulateCohort(db.listProducts()),
       };
     },
+  );
+
+  app.get("/api/v1/admin/model-versions", { preHandler: adminOnly, schema: { tags: ["Bank (admin)"], summary: "Decision model versions in use", ...secured } }, async () =>
+    db.listModelVersions(),
   );
 
   app.get("/api/v1/admin/recommendations", { preHandler: adminOnly, schema: { tags: ["Bank (admin)"], summary: "All issued recommendations", ...secured } }, async () =>

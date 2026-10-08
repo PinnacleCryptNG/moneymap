@@ -21,10 +21,43 @@ export function useEngineInput(requestedMore = false): EngineInput {
   );
 }
 
-/** Synchronous engine evaluation (for summaries such as the dashboard and map). */
+/**
+ * The engine's view of this customer (dashboard, map, products, Why).
+ * Local mode: computed in the browser. API mode: fetched from GET /customer/moneymap — the server is
+ * the authority; the identical local engine only fills the first frame until the server answers.
+ */
 export function useEngineResult(requestedMore = false): EngineResult {
   const input = useEngineInput(requestedMore);
-  return useMemo(() => runEngine(input), [input]);
+  const local = useMemo(() => runEngine(input), [input]);
+  const server = useServerPreview(requestedMore, input);
+  return server ?? local;
+}
+
+function useServerPreview(requestedMore: boolean, input: EngineInput): EngineResult | null {
+  const { synced, dispatch } = useStore();
+  const [result, setResult] = useState<EngineResult | null>(null);
+  const key = JSON.stringify([
+    input.customer.id,
+    input.permissions,
+    input.goal,
+    input.preferences,
+    input.products.map((p) => [p.product_id, p.status, p.version]),
+    input.history.map((h) => [h.id, h.status, h.feedback]),
+    requestedMore,
+  ]);
+  useEffect(() => {
+    if (!API_MODE || !http.hasSession()) return;
+    let cancelled = false;
+    synced()
+      .then(() => http.preview(requestedMore))
+      .then((r) => !cancelled && setResult(r))
+      .catch((e: Error) => !cancelled && dispatch({ type: "sync_error", message: `Couldn't load your MoneyMap from the server: ${e.message}` }));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return result;
 }
 
 /** The live recommendation for this customer, matching the decision engine's latest output. */

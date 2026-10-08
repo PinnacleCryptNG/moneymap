@@ -1,11 +1,14 @@
 import { ArrowLeft, BadgeCheck, CalendarClock, CircleAlert, CircleCheck, CircleHelp, Database, ExternalLink, Flag, Lock, Package, Wallet } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { consideredAlternatives, WhyNotList } from "../../components/recommendations/WhyNotList";
 import { Badge } from "../../components/shared/Badge";
 import { ButtonLink } from "../../components/shared/Button";
 import { WEIGHTS } from "../../engine";
 import { PERMISSION_COPY, PERMISSION_ORDER } from "../../services/consent";
+import { useStore } from "../../app/providers/store";
+import type { Explanation } from "../../engine";
+import { API_MODE, http } from "../../services/http";
 import { useEngineResult } from "../../services/recommendation";
 
 const FACTOR_LABELS: { key: keyof typeof WEIGHTS; label: string; hint: string }[] = [
@@ -33,8 +36,22 @@ export function WhyPage() {
   const [params] = useSearchParams();
   const more = params.get("more") === "1";
   const result = useEngineResult(more);
+  const { state } = useStore();
+  const record = state.recommendations.find((r) => r.product_id === result.top?.product.product_id);
+  const [stored, setStored] = useState<Explanation | null>(null);
+
+  // API mode: show the explanation exactly as stored when the recommendation was issued.
+  useEffect(() => {
+    if (!API_MODE || !record) return;
+    http
+      .explanation(record.id)
+      .then((r) => setStored(r.explanation))
+      .catch(() => setStored(null));
+  }, [record?.id]);
+
   if (!result.top || !result.explanation) return <Navigate to="/app/recommendation" replace />;
-  const { top, explanation: ex, context: ctx } = result;
+  const { top, context: ctx } = result;
+  const ex = stored ?? result.explanation;
   const alternatives = consideredAlternatives(result.ranked, top.product.product_id);
   const penalties = top.factors.irrelevancePenalty + top.factors.overexposurePenalty;
 
@@ -47,6 +64,7 @@ export function WhyPage() {
         <p className="eyebrow mb-1">Why this?</p>
         <h1>Why did MoneyMap recommend {top.product.name}?</h1>
         <p className="mt-2 max-w-2xl text-navy-500">Every recommendation is built from your goal, the information you allowed, the product's purpose and the timing. Here's exactly what was used.</p>
+        {stored && record && <p className="mt-2 text-caption !font-normal text-navy-500">As recorded on {new Date(record.created_at).toLocaleString("en-GB")} · {record.id} · {record.model_version}</p>}
       </header>
 
       <section className="card divide-y divide-mist" aria-label="Explanation">

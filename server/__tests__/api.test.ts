@@ -137,6 +137,57 @@ describe("goals and validation", () => {
   });
 });
 
+describe("PRD entities", () => {
+  it("stores reasons, feedback history, interactions, profile, signals and the model version", async () => {
+    const h = await session("CUST_SARAH");
+    const rec = (await recommend(h)).json().recommendation;
+
+    const detail = (await app.inject({ method: "GET", url: `/api/v1/recommendations/${rec.id}`, headers: h })).json();
+    expect(detail.reason_details.map((r: { label: string }) => r.label)).toContain("Your goal");
+
+    await app.inject({ method: "POST", url: `/api/v1/recommendations/${rec.id}/feedback`, headers: h, payload: { feedback: "not_understood" } });
+    await app.inject({ method: "POST", url: `/api/v1/recommendations/${rec.id}/feedback`, headers: h, payload: { feedback: "useful" } });
+    const after = (await app.inject({ method: "GET", url: `/api/v1/recommendations/${rec.id}`, headers: h })).json();
+    expect(after.feedback_history.map((f: { feedback: string }) => f.feedback)).toEqual(["not_understood", "useful"]);
+
+    await app.inject({ method: "GET", url: "/api/v1/products/ZEN_SAVE4ME", headers: h });
+    await app.inject({ method: "POST", url: "/api/v1/products/ZEN_SAVE4ME/eligibility-check", headers: h });
+    await app.inject({ method: "POST", url: "/api/v1/products/ZEN_SAVE4ME/apply", headers: h });
+    const a = await admin();
+    const metrics = (await app.inject({ method: "GET", url: "/api/v1/admin/metrics", headers: a })).json();
+    const kinds = metrics.interactions.filter((i: { product_id: string }) => i.product_id === "ZEN_SAVE4ME").map((i: { interaction: string }) => i.interaction);
+    expect(kinds).toEqual(expect.arrayContaining(["viewed", "eligibility_checked", "requested"]));
+
+    const sig = (await app.inject({ method: "GET", url: "/api/v1/customer/signals", headers: h })).json();
+    expect(sig.financial_profile.income_avg).toBe(450000);
+    expect(sig.signals.map((x: { signal: string }) => x.signal)).toContain("regular_surplus");
+
+    const models = (await app.inject({ method: "GET", url: "/api/v1/admin/model-versions", headers: a })).json();
+    expect(models[0].weights.needFit).toBe(0.3);
+  });
+
+  it("withdrawing consent removes stored signals and profile values", async () => {
+    const h = await session("CUST_SARAH");
+    await app.inject({ method: "POST", url: "/api/v1/consent", headers: h, payload: { income_patterns: false, spending_patterns: false } });
+    const sig = (await app.inject({ method: "GET", url: "/api/v1/customer/signals", headers: h })).json();
+    expect(sig.financial_profile.income_avg).toBeNull();
+    expect(sig.signals.some((x: { source_permission: string }) => x.source_permission === "income_patterns")).toBe(false);
+  });
+
+  it("publishes product eligibility conditions with their basis", async () => {
+    const p = (await app.inject({ method: "GET", url: "/api/v1/products/ZEN_ASPIRE" })).json();
+    const seg = p.eligibility_conditions.find((c: { condition: string }) => c.condition === "segments");
+    expect(seg).toMatchObject({ basis: "published", value: ["student"] });
+  });
+
+  it("serves the MoneyMap preview without issuing a recommendation", async () => {
+    const h = await session("CUST_DANIEL");
+    const preview = (await app.inject({ method: "GET", url: "/api/v1/customer/moneymap?requested_more=true", headers: h })).json();
+    expect(preview.top.product.product_id).toBe("ZEN_ASPIRE");
+    expect((await app.inject({ method: "GET", url: "/api/v1/recommendations", headers: h })).json()).toHaveLength(0);
+  });
+});
+
 describe("products and governance", () => {
   it("records a product request without opening anything", async () => {
     const h = await session("CUST_SARAH");

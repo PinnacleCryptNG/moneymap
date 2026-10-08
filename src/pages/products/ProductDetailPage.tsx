@@ -1,5 +1,5 @@
 import { ArrowLeft, CircleAlert, CircleCheck, CircleHelp, ExternalLink, FileText, Info, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useStore } from "../../app/providers/store";
 import { FitBadge } from "../../components/cards/ProductCard";
@@ -11,6 +11,7 @@ import { useToast } from "../../components/shared/Toast";
 import { SUBJECT_TO_ZENITH } from "../../data/products";
 import type { Evaluation } from "../../engine";
 import { postApply, postEligibilityCheck } from "../../services/api";
+import { API_MODE, http } from "../../services/http";
 import { useEngineInput, useEngineResult } from "../../services/recommendation";
 import { formatDate } from "../../utils/format";
 import { CATEGORY_META } from "../../utils/labels";
@@ -28,6 +29,11 @@ export function ProductDetailPage() {
   const [checking, setChecking] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [applying, setApplying] = useState(false);
+
+  // API mode: record the product view (a PRD "product interaction").
+  useEffect(() => {
+    if (API_MODE && id && http.hasSession()) http.viewProduct(id).catch(() => undefined);
+  }, [id]);
 
   if (!evaluation) {
     return <EmptyState icon={Info} title="Product not found" body="This product isn't in the catalogue." actions={<Link className="font-semibold text-blue-600" to="/app/products">Back to products</Link>} />;

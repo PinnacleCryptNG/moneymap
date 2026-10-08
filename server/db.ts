@@ -110,6 +110,64 @@ CREATE TABLE IF NOT EXISTS applications (
   status TEXT NOT NULL,
   at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS financial_profiles (
+  customer_id TEXT PRIMARY KEY REFERENCES customers(id),
+  income_avg INTEGER,
+  income_stability TEXT,
+  spending_avg INTEGER,
+  recurring_commitments INTEGER,
+  surplus_avg INTEGER,
+  coverage REAL NOT NULL,
+  permissions_json TEXT NOT NULL,
+  computed_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS transaction_signals (
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  signal TEXT NOT NULL,
+  strength REAL NOT NULL,
+  evidence TEXT NOT NULL,
+  source_permission TEXT NOT NULL,
+  computed_at TEXT NOT NULL,
+  PRIMARY KEY (customer_id, signal)
+);
+CREATE TABLE IF NOT EXISTS product_eligibility (
+  product_id TEXT NOT NULL REFERENCES products(product_id),
+  condition TEXT NOT NULL,
+  value TEXT NOT NULL,
+  basis TEXT NOT NULL CHECK (basis IN ('published', 'guardrail')),
+  source TEXT,
+  PRIMARY KEY (product_id, condition)
+);
+CREATE TABLE IF NOT EXISTS model_versions (
+  version TEXT PRIMARY KEY,
+  weights_json TEXT NOT NULL,
+  thresholds_json TEXT NOT NULL,
+  description TEXT NOT NULL,
+  first_used_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS recommendation_reasons (
+  recommendation_id TEXT NOT NULL REFERENCES recommendations(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  reason_key TEXT NOT NULL,
+  label TEXT NOT NULL,
+  detail TEXT NOT NULL,
+  PRIMARY KEY (recommendation_id, position)
+);
+CREATE TABLE IF NOT EXISTS recommendation_feedback (
+  id TEXT PRIMARY KEY,
+  recommendation_id TEXT NOT NULL REFERENCES recommendations(id) ON DELETE CASCADE,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  feedback TEXT NOT NULL,
+  at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS product_interactions (
+  id TEXT PRIMARY KEY,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  product_id TEXT NOT NULL REFERENCES products(product_id),
+  recommendation_id TEXT,
+  interaction TEXT NOT NULL CHECK (interaction IN ('viewed', 'explored', 'eligibility_checked', 'requested')),
+  at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS audit_log (
   seq INTEGER PRIMARY KEY AUTOINCREMENT,
   at TEXT NOT NULL,
@@ -274,6 +332,25 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
           JSON.stringify(p),
           p.updated_at,
         );
+        const e = p.eligibility;
+        const conditions: [string, string | number | boolean | string[] | undefined, "published" | "guardrail", string | undefined][] = [
+          ["segments", e.segments, "published", e.source],
+          ["minimum_age", e.minimum_age, "published", e.source],
+          ["maximum_age", e.maximum_age, "published", e.source],
+          ["salary_account_required", e.salary_account_required, "published", e.source],
+          ["max_principal_to_income", p.suitability.max_principal_to_income, "guardrail", undefined],
+          ["max_balance", p.suitability.max_balance, "guardrail", undefined],
+        ];
+        for (const [condition, value, basis, source] of conditions) {
+          if (value === undefined) continue;
+          db.prepare("INSERT OR IGNORE INTO product_eligibility (product_id, condition, value, basis, source) VALUES (?, ?, ?, ?, ?)").run(
+            p.product_id,
+            condition,
+            JSON.stringify(value),
+            basis,
+            source ?? null,
+          );
+        }
       }
     });
     if (!(db.prepare("SELECT 1 FROM audit_log LIMIT 1").get())) audit("system", "system.seeded", `${CUSTOMERS.length} customers, ${SEED_PRODUCTS.length} products.`);
@@ -282,6 +359,11 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
   /** Clear one customer's activity (Demo Mode) or everything. */
   function resetCustomer(customerId: string) {
     tx(() => {
+      db.prepare("DELETE FROM recommendation_feedback WHERE customer_id = ?").run(customerId);
+      db.prepare("DELETE FROM recommendation_reasons WHERE recommendation_id IN (SELECT id FROM recommendations WHERE customer_id = ?)").run(customerId);
+      db.prepare("DELETE FROM product_interactions WHERE customer_id = ?").run(customerId);
+      db.prepare("DELETE FROM transaction_signals WHERE customer_id = ?").run(customerId);
+      db.prepare("DELETE FROM financial_profiles WHERE customer_id = ?").run(customerId);
       db.prepare("DELETE FROM recommendations WHERE customer_id = ?").run(customerId);
       db.prepare("DELETE FROM applications WHERE customer_id = ?").run(customerId);
       db.prepare("DELETE FROM goals WHERE customer_id = ?").run(customerId);
@@ -294,7 +376,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
 
   function resetAll() {
     tx(() => {
-      for (const t of ["recommendations", "applications", "goals", "consent_events", "consents", "preferences", "product_versions", "products", "customers", "audit_log"]) {
+      for (const t of ["recommendation_feedback", "recommendation_reasons", "product_interactions", "transaction_signals", "financial_profiles", "product_eligibility", "model_versions", "recommendations", "applications", "goals", "consent_events", "consents", "preferences", "product_versions", "products", "customers", "audit_log"]) {
         db.exec(`DELETE FROM ${t}`);
       }
     });
@@ -456,9 +538,10 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
 
   function insertRecommendation(
     rec: Omit<RecommendationRecord, "id" | "created_at" | "status">,
-    snapshot: { explanation: unknown; trace: unknown; factors: unknown },
+    snapshot: { explanation: { influences: { key: string; label: string; detail: string }[] }; trace: unknown; factors: unknown },
   ): RecommendationRecord {
     const recId = id("REC");
+    tx(() => {
     db.prepare(
       `INSERT INTO recommendations (id, customer_id, product_id, product_name, category, need, match_score, reasons_json, timing_reason,
         eligibility_status, model_version, status, explanation_json, trace_json, factors_json, created_at)
@@ -480,6 +563,10 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
       JSON.stringify(snapshot.factors),
       now(),
     );
+    snapshot.explanation.influences.forEach((r, i) =>
+      db.prepare("INSERT INTO recommendation_reasons (recommendation_id, position, reason_key, label, detail) VALUES (?, ?, ?, ?, ?)").run(recId, i, r.key, r.label, r.detail),
+    );
+    });
     audit("system", "recommendation.issued", `${rec.customer_id}: ${rec.product_name} (match ${rec.match_score}, need ${rec.need ?? "—"}, ${rec.model_version})`);
     return getRecommendation(recId)!.record;
   }
@@ -491,7 +578,10 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
     const status: RecommendationStatus =
       feedback === "remind_later" ? "snoozed" : feedback === "not_relevant" || feedback === "not_wanted" ? "dismissed" : (row.status as RecommendationStatus);
     const snoozed = feedback === "remind_later" ? new Date(Date.now() + remindLaterDays * 86_400_000).toISOString() : row.snoozed_until;
-    db.prepare("UPDATE recommendations SET feedback = ?, feedback_at = ?, status = ?, snoozed_until = ? WHERE id = ?").run(feedback, t, status, snoozed, recId);
+    tx(() => {
+      db.prepare("UPDATE recommendations SET feedback = ?, feedback_at = ?, status = ?, snoozed_until = ? WHERE id = ?").run(feedback, t, status, snoozed, recId);
+      db.prepare("INSERT INTO recommendation_feedback (id, recommendation_id, customer_id, feedback, at) VALUES (?, ?, ?, ?, ?)").run(id("FB"), recId, row.customer_id, feedback, t);
+    });
     audit("customer", "recommendation.feedback", `${row.customer_id}: ${row.product_name} → ${feedback}`);
     return getRecommendation(recId)!.record;
   }
@@ -513,6 +603,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
         app.at,
       );
       db.prepare("UPDATE recommendations SET status = 'applied' WHERE customer_id = ? AND product_id = ?").run(customerId, product.product_id);
+      recordInteraction(customerId, product.product_id, "requested");
     });
     audit("customer", "product.request_submitted", `${customerId}: ${product.name}`);
     return app;
@@ -528,9 +619,136 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
     }[]).map((r) => ({ id: r.id, productId: r.product_id, productName: r.product_name, status: r.status, at: r.at }));
   }
 
+  // ---- Product interactions ----
+  type Interaction = "viewed" | "explored" | "eligibility_checked" | "requested";
+  function recordInteraction(customerId: string, productId: string, interaction: Interaction, recommendationId: string | null = null) {
+    db.prepare("INSERT INTO product_interactions (id, customer_id, product_id, recommendation_id, interaction, at) VALUES (?, ?, ?, ?, ?, ?)").run(
+      id("INT"),
+      customerId,
+      productId,
+      recommendationId,
+      interaction,
+      now(),
+    );
+  }
+
+  function interactionCounts() {
+    return db.prepare("SELECT product_id, interaction, COUNT(*) AS n FROM product_interactions GROUP BY product_id, interaction").all() as {
+      product_id: string;
+      interaction: Interaction;
+      n: number;
+    }[];
+  }
+
+  function feedbackHistory(recId: string) {
+    return db.prepare("SELECT feedback, at FROM recommendation_feedback WHERE recommendation_id = ? ORDER BY at").all(recId) as { feedback: FeedbackType; at: string }[];
+  }
+
+  function recommendationReasons(recId: string) {
+    return db.prepare("SELECT reason_key, label, detail FROM recommendation_reasons WHERE recommendation_id = ? ORDER BY position").all(recId) as {
+      reason_key: string;
+      label: string;
+      detail: string;
+    }[];
+  }
+
+  // ---- Financial profile & signals (only what the customer permitted) ----
+  function saveFinancialSnapshot(
+    customerId: string,
+    ctx: {
+      income: { average: number; stability: string } | null;
+      spending: { average: number; recurring: number } | null;
+      surplus: { average: number } | null;
+      coverage: number;
+      permissions: Permissions;
+      signals: { signal: string; strength: number; evidence: string; source: string }[];
+    },
+  ) {
+    const t = now();
+    tx(() => {
+      db.prepare(
+        `INSERT INTO financial_profiles (customer_id, income_avg, income_stability, spending_avg, recurring_commitments, surplus_avg, coverage, permissions_json, computed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(customer_id) DO UPDATE SET income_avg = excluded.income_avg, income_stability = excluded.income_stability,
+           spending_avg = excluded.spending_avg, recurring_commitments = excluded.recurring_commitments, surplus_avg = excluded.surplus_avg,
+           coverage = excluded.coverage, permissions_json = excluded.permissions_json, computed_at = excluded.computed_at`,
+      ).run(
+        customerId,
+        ctx.income ? Math.round(ctx.income.average) : null,
+        ctx.income?.stability ?? null,
+        ctx.spending ? Math.round(ctx.spending.average) : null,
+        ctx.spending ? Math.round(ctx.spending.recurring) : null,
+        ctx.surplus ? Math.round(ctx.surplus.average) : null,
+        ctx.coverage,
+        JSON.stringify(ctx.permissions),
+        t,
+      );
+      // Signals are replaced wholesale, so a withdrawn permission removes its signals immediately.
+      db.prepare("DELETE FROM transaction_signals WHERE customer_id = ?").run(customerId);
+      for (const s of ctx.signals) {
+        db.prepare("INSERT INTO transaction_signals (customer_id, signal, strength, evidence, source_permission, computed_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+          customerId,
+          s.signal,
+          s.strength,
+          s.evidence,
+          s.source,
+          t,
+        );
+      }
+    });
+  }
+
+  function getFinancialProfile(customerId: string) {
+    return (db.prepare("SELECT * FROM financial_profiles WHERE customer_id = ?").get(customerId) as Record<string, unknown> | undefined) ?? null;
+  }
+
+  function getSignals(customerId: string) {
+    return db.prepare("SELECT signal, strength, evidence, source_permission, computed_at FROM transaction_signals WHERE customer_id = ? ORDER BY signal").all(customerId);
+  }
+
+  function productEligibility(productId: string) {
+    return (db.prepare("SELECT condition, value, basis, source FROM product_eligibility WHERE product_id = ? ORDER BY basis DESC, condition").all(productId) as {
+      condition: string;
+      value: string;
+      basis: string;
+      source: string | null;
+    }[]).map((r) => ({ ...r, value: JSON.parse(r.value) }));
+  }
+
+  // ---- Model versions ----
+  function registerModelVersion(version: string, weights: unknown, thresholds: unknown, description: string) {
+    db.prepare("INSERT OR IGNORE INTO model_versions (version, weights_json, thresholds_json, description, first_used_at) VALUES (?, ?, ?, ?, ?)").run(
+      version,
+      JSON.stringify(weights),
+      JSON.stringify(thresholds),
+      description,
+      now(),
+    );
+  }
+
+  function listModelVersions() {
+    return (db.prepare("SELECT * FROM model_versions ORDER BY first_used_at").all() as {
+      version: string;
+      weights_json: string;
+      thresholds_json: string;
+      description: string;
+      first_used_at: string;
+    }[]).map((r) => ({ version: r.version, weights: JSON.parse(r.weights_json), thresholds: JSON.parse(r.thresholds_json), description: r.description, first_used_at: r.first_used_at }));
+  }
+
   seed();
 
   return {
+    recordInteraction,
+    interactionCounts,
+    feedbackHistory,
+    recommendationReasons,
+    saveFinancialSnapshot,
+    getFinancialProfile,
+    getSignals,
+    productEligibility,
+    registerModelVersion,
+    listModelVersions,
     raw: db,
     close: () => db.close(),
     audit,
