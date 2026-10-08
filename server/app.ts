@@ -6,7 +6,8 @@ import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import { DEFAULT_PREFERENCES } from "../src/data/defaults";
 import { MODEL_VERSION, REMIND_LATER_DAYS, THRESHOLDS, WEIGHTS, runEngine, toApiResponse, toRecord, type EngineResult } from "../src/engine";
 import { simulateCohort } from "../src/services/analytics";
-import type { FeedbackType, GoalDraft, Permissions, Preferences } from "../src/types";
+import type { AppNotification, Channel, FeedbackType, GoalDraft, Permissions, Preferences, RawTransaction, Trigger } from "../src/types";
+import { decideOnTrigger, detectTrigger, simulatedCredit } from "../src/engine/triggers";
 import { GOAL_LIMITS } from "../src/utils/goals";
 import { DEMO_TODAY } from "../src/data/ledgers";
 import { categorise, describe } from "../src/engine/ledger";
@@ -80,6 +81,7 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
         { name: "Recommendations" },
         { name: "Products" },
         { name: "Preferences" },
+        { name: "Events", description: "Step 3: new account activity triggers a fresh look. MoneyMap messages the customer only when the engine finds a strong reason." },
         { name: "Bank (admin)" },
       ],
     },
@@ -104,7 +106,7 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
   db.registerModelVersion(MODEL_VERSION, WEIGHTS, THRESHOLDS, "Transparent rules + weighted scoring (prototype weights, PRD §28).");
 
   /** Run the decision engine for a customer on consent-filtered data, and persist the resulting profile and signals. */
-  function evaluate(customerId: string, requestedMore = false): EngineResult {
+  function evaluate(customerId: string, requestedMore = false, trigger: Trigger | null = null): EngineResult {
     const permissions = db.getPermissions(customerId);
     const result = runEngine({
       customer: redactProfile(db.getCustomer(customerId)!, permissions),
@@ -114,6 +116,7 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
       products: db.listProducts(),
       history: db.listRecommendations(customerId),
       requestedMore,
+      trigger,
     });
     db.saveFinancialSnapshot(customerId, result.context);
     return result;
@@ -328,6 +331,114 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
     "/api/v1/goals/:id",
     { preHandler: customerOnly, schema: { tags: ["Goals"], summary: "Delete a goal", ...secured } },
     async (req, reply) => (db.deleteGoal(req.session!.sub, req.params.id) ? reply.code(204).send() : fail(reply, 404, "not_found", "Goal not found.")),
+  );
+
+  // ---------------- Events (step 3) ----------------
+  /**
+   * A new statement line arrives. Store it; if it is a trigger (income landing, a windfall), run the engine
+   * again with that context and decide whether it deserves a message. Every trigger is logged with its outcome.
+   */
+  function ingest(customerId: string, t: Omit<RawTransaction, "id">) {
+    const before = db.getCustomer(customerId)!;
+    const transaction = db.addTransaction(customerId, t);
+    const trigger = detectTrigger(transaction, before);
+    if (!trigger) {
+      db.audit("system", "transaction.received", `${customerId}: ${describe(transaction)} ${transaction.amount} (no trigger)`);
+      return { transaction, trigger: null, event: null, notification: null };
+    }
+    const history = db.listRecommendations(customerId);
+    const result = evaluate(customerId, false, trigger);
+    const decision = decideOnTrigger({
+      trigger,
+      permissions: db.getPermissions(customerId),
+      result,
+      history,
+      notifications: db.listNotifications(customerId),
+      now: new Date(),
+    });
+    let draft: Omit<AppNotification, "id" | "customer_id" | "event_id" | "created_at"> | null = null;
+    if (decision.outcome === "notified" && result.top) {
+      const open = history.find((h) => h.product_id === result.top!.product.product_id && !h.feedback && h.status !== "applied");
+      const record = open ?? db.insertRecommendation(toRecord(result, customerId)!, { explanation: result.explanation!, trace: result.trace, factors: result.top.factors });
+      draft = {
+        kind: decision.kind,
+        title: decision.title,
+        body: decision.body,
+        product_id: result.top.product.product_id,
+        product_name: result.top.product.name,
+        recommendation_id: record.id,
+      };
+    }
+    const saved = db.recordTrigger(customerId, transaction.id, trigger, decision, draft);
+    return { transaction, trigger, event: saved.event, notification: saved.notification };
+  }
+
+  const CHANNELS: Channel[] = ["transfer", "pos", "web", "bill_payment", "atm", "standing_order"];
+  app.post<{ Body: { customer_id: string; date?: string; narration: string; amount: number; direction: "credit" | "debit"; channel: Channel } }>(
+    "/api/v1/events/transactions",
+    {
+      preHandler: adminOnly,
+      schema: {
+        tags: ["Events"],
+        summary: "Core-banking feed: a new transaction for a customer",
+        description:
+          "In production a core-banking adapter would post each new statement line here. " +
+          "Money landing (salary, allowance) or a one-off credit of at least half the usual monthly income is a trigger: " +
+          "the engine runs again, and the customer gets a message only if there is a strong match, they share income data, and no message was sent in the last 7 days.",
+        body: {
+          type: "object",
+          required: ["customer_id", "narration", "amount", "direction", "channel"],
+          additionalProperties: false,
+          properties: {
+            customer_id: { type: "string" },
+            date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+            narration: { type: "string", minLength: 3, maxLength: 140 },
+            amount: { type: "integer", minimum: 1, maximum: 1000000000 },
+            direction: { type: "string", enum: ["credit", "debit"] },
+            channel: { type: "string", enum: CHANNELS },
+          },
+        },
+        ...secured,
+      },
+    },
+    async (req, reply) => {
+      const { customer_id, date, ...rest } = req.body;
+      if (!db.getCustomer(customer_id)) return fail(reply, 404, "not_found", "No such customer.");
+      return reply.code(201).send(ingest(customer_id, { ...rest, date: date ?? DEMO_TODAY }));
+    },
+  );
+
+  app.post<{ Body: { type: "income" | "windfall" } }>(
+    "/api/v1/demo/events",
+    {
+      preHandler: customerOnly,
+      schema: {
+        tags: ["Events"],
+        summary: "Demo Mode: simulate money arriving for the signed-in customer",
+        description: "income = the customer's usual salary or allowance lands; windfall = a one-off bonus of about twice their usual monthly income.",
+        body: { type: "object", required: ["type"], additionalProperties: false, properties: { type: { type: "string", enum: ["income", "windfall"] } } },
+        ...secured,
+      },
+    },
+    async (req, reply) => {
+      const id = req.session!.sub;
+      // The id is replaced when the line is stored.
+      return reply.code(201).send(ingest(id, simulatedCredit(req.body.type, db.getCustomer(id)!, DEMO_TODAY, "pending")));
+    },
+  );
+
+  app.get("/api/v1/events", { preHandler: customerOnly, schema: { tags: ["Events"], summary: "What MoneyMap noticed on the account, and what it decided", ...secured } }, async (req) =>
+    db.listTriggerEvents(req.session!.sub),
+  );
+
+  app.get("/api/v1/notifications", { preHandler: customerOnly, schema: { tags: ["Events"], summary: "Messages MoneyMap sent the customer", ...secured } }, async (req) =>
+    db.listNotifications(req.session!.sub),
+  );
+
+  app.post<{ Params: { id: string } }>(
+    "/api/v1/notifications/:id/read",
+    { preHandler: customerOnly, schema: { tags: ["Events"], summary: "Mark a message as read", ...secured } },
+    async (req, reply) => (db.markNotificationRead(req.session!.sub, req.params.id) ? reply.code(204).send() : fail(reply, 404, "not_found", "Message not found.")),
   );
 
   // ---------------- Recommendations ----------------
@@ -545,6 +656,10 @@ export async function buildApp(db: Db, opts: { logger?: boolean } = {}) {
         cohort: simulateCohort(db.listProducts()),
       };
     },
+  );
+
+  app.get("/api/v1/admin/events", { preHandler: adminOnly, schema: { tags: ["Bank (admin)"], summary: "Recent triggers across customers and what MoneyMap decided", ...secured } }, async () =>
+    db.listTriggerEvents(),
   );
 
   app.get("/api/v1/admin/model-versions", { preHandler: adminOnly, schema: { tags: ["Bank (admin)"], summary: "Decision model versions in use", ...secured } }, async () =>

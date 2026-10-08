@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2, Flag, Footprints, PauseCircle } from "lucide-react";
+import { ArrowRight, BellRing, CheckCircle2, Flag, Footprints, PauseCircle } from "lucide-react";
 import { useStore } from "../../app/providers/store";
 import { FinancialSnapshot } from "../../components/cards/FinancialSnapshot";
 import { MapJourney } from "../../components/cards/MapJourney";
@@ -12,7 +12,8 @@ import { formatNaira, greeting } from "../../utils/format";
 
 /** The MoneyMap screen (Phase 2 §4): where you are → your next move → where you're going. */
 export function DashboardPage() {
-  const { customer, activeGoal } = useStore();
+  const { customer, activeGoal, state, dispatch } = useStore();
+  const message = state.notifications.find((n) => !n.read_at);
   const result = useEngineResult();
   const ctx = result.context;
   const surplus = ctx.surplus?.average ?? null;
@@ -30,6 +31,21 @@ export function DashboardPage() {
         <p className="text-navy-500">{greeting()}, {customer.firstName}</p>
         <h1>Your MoneyMap</h1>
       </header>
+
+      {message && (
+        <section aria-label="New message" className="fade-up flex flex-col gap-3 rounded-[16px] border border-blue bg-blue-50/60 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
+          <div className="flex min-w-0 gap-3">
+            <BellRing size={22} className="mt-0.5 shrink-0 text-blue-600" aria-hidden />
+            <div className="min-w-0">
+              <p className="font-semibold">{message.title}</p>
+              <p className="text-small text-navy-700">{message.body}</p>
+            </div>
+          </div>
+          <ButtonLink size="sm" to="/app/recommendation" className="shrink-0" onClick={() => dispatch({ type: "read_notification", id: message.id })}>
+            See why
+          </ButtonLink>
+        </section>
+      )}
 
       <section className="card p-4 md:p-6" aria-labelledby="journey-title">
         <h2 id="journey-title" className="sr-only">You are here, next move, your goal</h2>

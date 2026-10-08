@@ -190,6 +190,33 @@ try {
       check(`Raw bank narrations shown (${size})`, (await page.getByText(/^(POS|WEB|NIP|SAVE4ME|GLO)/).count()) > 0);
     });
 
+    // 3b. Step 3: money arrives — Sarah gets one message, then MoneyMap holds back; Tolu's bonus is noticed, nothing sent.
+    const simulate = async (page, label) => {
+      await page.getByRole("button", { name: "Open Demo Mode" }).click();
+      await page.getByRole("dialog").getByRole("button", { name: label }).click();
+      await page.waitForTimeout(900);
+    };
+    await session(`Event triggers (${size})`, viewport, async (page) => {
+      await demoLoad(page, "Sarah");
+      await simulate(page, "Salary lands");
+      check(`Salary → message badge (${size})`, await page.getByRole("link", { name: "Messages, 1 unread" }).isVisible());
+      check(`Salary → payday banner on dashboard (${size})`, await page.getByRole("region", { name: "New message" }).getByText(/SAVE4ME/).first().isVisible());
+      await simulate(page, "Bonus arrives");
+      await go(page, "/app/inbox");
+      await healthy(page, `Messages (${size})`);
+      check(`Inbox: one message (${size})`, (await page.getByRole("heading", { name: /SAVE4ME/ }).count()) === 1);
+      check(`Inbox: bonus checked, nothing sent (${size})`, await page.getByText("Checked — nothing sent", { exact: true }).isVisible());
+      check(`Inbox: weekly limit explained (${size})`, await page.getByRole("region", { name: "What MoneyMap noticed" }).getByText(/at most one a week/).isVisible());
+      await go(page, "/app/map");
+      check(`New salary line on the statement (${size})`, await page.getByText(/SALARY OCT 2026/).first().isVisible());
+
+      await demoLoad(page, "Tolu");
+      await simulate(page, "Bonus arrives");
+      check(`Tolu bonus → no message badge (${size})`, await page.getByRole("link", { name: "Messages", exact: true }).isVisible());
+      await go(page, "/app/inbox");
+      check(`Tolu: bonus noticed, nothing sent (${size})`, await page.getByText("Checked — nothing sent", { exact: true }).isVisible());
+    });
+
     // 4. Tolu: no match, then a new goal changes the answer.
     await session(`No-match customer (${size})`, viewport, async (page) => {
       await demoLoad(page, "Tolu");

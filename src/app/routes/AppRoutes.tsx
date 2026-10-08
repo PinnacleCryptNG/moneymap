@@ -8,6 +8,7 @@ import { AdminOverviewPage } from "../../pages/admin/AdminOverviewPage";
 import { AdminProductsPage } from "../../pages/admin/AdminProductsPage";
 import { DashboardPage } from "../../pages/dashboard/DashboardPage";
 import { GoalsPage } from "../../pages/goals/GoalsPage";
+import { InboxPage } from "../../pages/inbox/InboxPage";
 import { LandingPage } from "../../pages/landing/LandingPage";
 import { MapPage } from "../../pages/map/MapPage";
 import { OnboardingPage } from "../../pages/onboarding/OnboardingPage";
@@ -31,6 +32,7 @@ export function AppRoutes() {
         <Route path="products" element={<ProductsPage />} />
         <Route path="products/:id" element={<ProductDetailPage />} />
         <Route path="activity" element={<ActivityPage />} />
+        <Route path="inbox" element={<InboxPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
       <Route path="/admin" element={<AdminShell />}>

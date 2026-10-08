@@ -255,3 +255,69 @@ describe("products and governance", () => {
     expect(Object.keys(r.json().paths)).toContain("/api/v1/recommendations");
   });
 });
+
+describe("event triggers (step 3)", () => {
+  const simulate = (h: Record<string, string>, type: "income" | "windfall") =>
+    app.inject({ method: "POST", url: "/api/v1/demo/events", headers: h, payload: { type } });
+
+  it("Sarah's salary landing issues SAVE4ME with a payday reason and one message", async () => {
+    const h = await session("CUST_SARAH");
+    const r = (await simulate(h, "income")).json();
+    expect(r.trigger).toMatchObject({ type: "income_received", amount: 450000 });
+    expect(r.transaction.narration).toMatch(/BRIGHTPATH LOGISTICS LTD\/SALARY OCT 2026/);
+    expect(r.event.outcome).toBe("notified");
+    expect(r.notification).toMatchObject({ kind: "new_recommendation", product_id: "ZEN_SAVE4ME" });
+    const ex = (await app.inject({ method: "GET", url: `/api/v1/recommendations/${r.notification.recommendation_id}/explanation`, headers: h })).json();
+    expect(ex.explanation.whyNow).toMatch(/just arrived/);
+    expect((await app.inject({ method: "GET", url: "/api/v1/notifications", headers: h })).json()).toHaveLength(1);
+  });
+
+  it("sends at most one message a week, and logs why it stayed quiet", async () => {
+    const h = await session("CUST_SARAH");
+    await simulate(h, "income");
+    const second = (await simulate(h, "windfall")).json();
+    expect(second.trigger.type).toBe("windfall");
+    expect(second.event).toMatchObject({ outcome: "held_back" });
+    expect(second.event.reason).toMatch(/at most one a week/);
+    expect(second.notification).toBeNull();
+    expect((await app.inject({ method: "GET", url: "/api/v1/events", headers: h })).json()).toHaveLength(2);
+  });
+
+  it("Tolu's bonus is noticed but nothing is sent, because nothing would help", async () => {
+    const h = await session("CUST_TOLU");
+    const r = (await simulate(h, "windfall")).json();
+    expect(r.trigger.type).toBe("windfall");
+    expect(r.event.outcome).toBe("held_back");
+    expect(r.notification).toBeNull();
+    expect((await app.inject({ method: "GET", url: "/api/v1/recommendations", headers: h })).json()).toHaveLength(0);
+  });
+
+  it("doesn't act on money coming in without income permission", async () => {
+    const h = await session("CUST_SARAH");
+    await app.inject({ method: "POST", url: "/api/v1/consent", headers: h, payload: { income_patterns: false } });
+    const r = (await simulate(h, "income")).json();
+    expect(r.event.outcome).toBe("held_back");
+    expect(r.event.reason).toMatch(/haven't shared income/);
+  });
+
+  it("the bank feed is admin-only, validated, and ignores everyday spending", async () => {
+    const h = await session("CUST_SARAH");
+    const line = { customer_id: "CUST_SARAH", narration: "POS/SHOPRITE LEKKI/LA NG", amount: 12500, direction: "debit", channel: "pos" };
+    expect((await app.inject({ method: "POST", url: "/api/v1/events/transactions", headers: h, payload: line })).statusCode).toBe(403);
+    const a = await admin();
+    const ok = await app.inject({ method: "POST", url: "/api/v1/events/transactions", headers: a, payload: line });
+    expect(ok.statusCode).toBe(201);
+    expect(ok.json().trigger).toBeNull();
+    expect((await app.inject({ method: "POST", url: "/api/v1/events/transactions", headers: a, payload: { ...line, amount: -5 } })).statusCode).toBe(400);
+    expect((await app.inject({ method: "GET", url: "/api/v1/admin/events", headers: a })).statusCode).toBe(200);
+  });
+
+  it("a fresh demo session clears live lines, events and messages", async () => {
+    let h = await session("CUST_SARAH");
+    await simulate(h, "income");
+    h = await session("CUST_SARAH");
+    expect((await app.inject({ method: "GET", url: "/api/v1/notifications", headers: h })).json()).toHaveLength(0);
+    const t = (await app.inject({ method: "GET", url: "/api/v1/customer/transactions?limit=1", headers: h })).json();
+    expect(t.transactions[0].id).not.toMatch(/^LIVE_/);
+  });
+});

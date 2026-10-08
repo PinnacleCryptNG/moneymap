@@ -63,6 +63,7 @@ export function describe(t: Pick<RawTransaction, "narration" | "direction">): st
   if (head.startsWith("NIP TRF FROM")) return `Transfer from ${titleCase(head.replace("NIP TRF FROM", ""))}${parts[1] ? ` — ${titleCase(parts[1]).toLowerCase()}` : ""}`;
   if (head.startsWith("NIP TRF TO")) return `Transfer to ${titleCase(head.replace("NIP TRF TO", ""))}${parts[1] ? ` — ${titleCase(parts[1]).toLowerCase()}` : ""}`;
   if (head === "NIP" && /SALARY/.test(parts[2] ?? "")) return `Salary — ${titleCase(parts[1])}`;
+  if (head === "NIP" && parts[1] && parts[2]) return `${titleCase(parts[2]).toLowerCase().replace(/^./, (c) => c.toUpperCase())} — ${titleCase(parts[1])}`;
   if (head === "POS") return `Card payment — ${titleCase(parts[1] ?? "")}`;
   if (head === "WEB") return `Online payment — ${titleCase(parts[1] ?? "")}`;
   if (head === "ATM WDL") return `Cash withdrawal — ${titleCase(parts[1] ?? "")}`;

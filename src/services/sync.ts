@@ -60,6 +60,12 @@ export async function syncAction(action: Action, prev: AppState): Promise<Server
     case "set_product_status":
       await http.setProductStatus(action.productId, action.status);
       break;
+    case "simulate_event":
+      await http.simulateEvent(action.event);
+      break;
+    case "read_notification":
+      await http.readNotification(action.id);
+      break;
     case "reset":
       await http.resetAll();
       http.clearSession();

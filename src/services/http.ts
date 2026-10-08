@@ -1,6 +1,7 @@
 // HTTP client for the MoneyMap API. Used when the app is built with VITE_API_MODE=http.
 import type { EngineResult, Evaluation } from "../engine";
 import type {
+  AppNotification,
   Application,
   ConsentRecord,
   FeedbackType,
@@ -9,7 +10,9 @@ import type {
   Permissions,
   Preferences,
   Product,
+  RawTransaction,
   RecommendationRecord,
+  TriggerEvent,
 } from "../types";
 
 export const API_MODE = import.meta.env.VITE_API_MODE === "http";
@@ -108,6 +111,9 @@ export interface ServerSnapshot {
   recommendations: RecommendationRecord[];
   applications: Application[];
   products: Product[];
+  liveTransactions: RawTransaction[];
+  notifications: AppNotification[];
+  triggerEvents: TriggerEvent[];
 }
 
 export const http = {
@@ -125,13 +131,16 @@ export const http = {
   },
 
   async snapshot(): Promise<ServerSnapshot> {
-    const [consent, goals, preferences, recommendations, applications, products] = await Promise.all([
+    const [consent, goals, preferences, recommendations, applications, products, statement, notifications, triggerEvents] = await Promise.all([
       call<{ permissions: Permissions; history: ConsentRecord[] }>("GET", "/consent"),
       call<GoalOut[]>("GET", "/goals"),
       call<Preferences>("GET", "/preferences"),
       call<RecommendationRecord[]>("GET", "/recommendations"),
       call<Application[]>("GET", "/applications"),
       call<Product[]>("GET", "/products", undefined, "none"),
+      call<{ transactions: (RawTransaction & { category: string; description: string })[] }>("GET", "/customer/transactions?limit=50"),
+      call<AppNotification[]>("GET", "/notifications"),
+      call<TriggerEvent[]>("GET", "/events"),
     ]);
     const g = goals.map(toGoal);
     return {
@@ -143,8 +152,17 @@ export const http = {
       recommendations,
       applications,
       products,
+      // Lines that arrived live (step 3); the six-month statement itself is the same as the local copy.
+      liveTransactions: statement.transactions
+        .filter((t) => t.id.startsWith("LIVE_"))
+        .map(({ id, date, narration, amount, direction, channel }) => ({ id, date, narration, amount, direction, channel })),
+      notifications,
+      triggerEvents,
     };
   },
+
+  simulateEvent: (type: "income" | "windfall") => call("POST", "/demo/events", { type }),
+  readNotification: (notificationId: string) => call("POST", `/notifications/${notificationId}/read`, {}),
 
   setConsent: (p: Partial<Permissions>) => call("POST", "/consent", p),
   createGoal: (g: GoalDraft) => call<GoalOut>("POST", "/goals", { ...goalBody(g), amount: Math.round(g.amount), active: true }),

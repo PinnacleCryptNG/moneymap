@@ -7,6 +7,7 @@ import type {
   PermissionKey,
   Permissions,
   Signal,
+  Trigger,
 } from "../types";
 import { average, clamp, formatNaira } from "../utils/format";
 
@@ -44,6 +45,8 @@ export interface FinancialContext {
   signals: DetectedSignal[];
   /** How the figures were read from transactions — only the parts the customer permitted. */
   ledger: Derivation | null;
+  /** What prompted this fresh look (money arriving), if anything — only when income data is shared. */
+  trigger: Trigger | null;
   /** Share of available data categories the customer has permitted (0–1). */
   coverage: number;
 }
@@ -80,6 +83,7 @@ export function buildFinancialContext(
   customer: CustomerProfile,
   permissions: Permissions,
   goal: FinancialGoal | null,
+  trigger: Trigger | null = null,
 ): FinancialContext {
   const signals: DetectedSignal[] = [];
   const add = (signal: Signal, strength: number, evidence: string, source: PermissionKey) =>
@@ -305,6 +309,7 @@ export function buildFinancialContext(
           activity: permissions.account_activity ? customer.derivation.activity : null,
         }
       : null,
+    trigger: permissions.income_patterns ? trigger : null,
     coverage,
   };
 }

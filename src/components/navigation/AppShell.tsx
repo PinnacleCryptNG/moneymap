@@ -1,4 +1,4 @@
-import { Activity, Compass, Flag, Home, LayoutGrid, Map as MapIcon, Settings, ShieldCheck, User } from "lucide-react";
+import { Activity, Bell, Compass, Flag, Home, LayoutGrid, Map as MapIcon, Settings, ShieldCheck, User } from "lucide-react";
 import { NavLink, Navigate, Outlet, Link, useLocation } from "react-router-dom";
 import { useStore } from "../../app/providers/store";
 import { Logo } from "../shared/Logo";
@@ -22,7 +22,8 @@ const BOTTOM = [
 ];
 
 export function TopNavigation() {
-  const { customer } = useStore();
+  const { customer, state } = useStore();
+  const unread = state.notifications.filter((n) => !n.read_at).length;
   return (
     <header className="sticky top-0 z-30 border-b border-mist bg-white/95 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 md:px-6">
@@ -30,6 +31,18 @@ export function TopNavigation() {
         <div className="flex items-center gap-2">
           <Link to="/admin" className="hidden min-h-11 items-center gap-1.5 rounded-[10px] px-3 text-small font-medium text-navy-500 hover:bg-cloud hover:text-navy sm:inline-flex">
             <ShieldCheck size={18} aria-hidden /> Bank view
+          </Link>
+          <Link
+            to="/app/inbox"
+            className="relative flex h-11 w-11 items-center justify-center rounded-full text-navy-700 hover:bg-cloud"
+            aria-label={unread ? `Messages, ${unread} unread` : "Messages"}
+          >
+            <Bell size={20} aria-hidden />
+            {unread > 0 && (
+              <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red px-1 text-[10px] font-bold text-white" aria-hidden>
+                {unread}
+              </span>
+            )}
           </Link>
           <Link to="/app/settings" className="flex min-h-11 items-center gap-2 rounded-full border border-mist py-1 pl-1 pr-3 hover:bg-cloud" aria-label={`Profile: ${customer.name}`}>
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-navy text-small font-semibold text-white" aria-hidden>

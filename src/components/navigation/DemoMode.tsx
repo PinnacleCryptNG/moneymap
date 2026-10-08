@@ -1,5 +1,5 @@
-import { ArrowRight, MonitorPlay, RotateCcw, Zap } from "lucide-react";
-import { useState } from "react";
+import { ArrowRight, Banknote, Gift, MonitorPlay, RotateCcw, Zap } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useStore } from "../../app/providers/store";
 import { CUSTOMERS } from "../../data/customers";
@@ -63,9 +63,38 @@ export function DemoPersonaList({ onDone }: { onDone?: () => void }) {
   );
 }
 
+/** Step 3: make money arrive on the loaded customer's account, as a core-banking feed would. */
+function SimulateActivity({ onSimulate }: { onSimulate: (event: "income" | "windfall") => void }) {
+  const { state, customer } = useStore();
+  if (!state.onboarded) return null;
+  const income = customer.incomeSource === "allowance" ? "Allowance lands" : "Salary lands";
+  return (
+    <div className="mb-4 rounded-[16px] border border-mist bg-cloud p-4">
+      <p className="mb-1 font-semibold">Simulate account activity — {customer.firstName}</p>
+      <p className="mb-3 text-small text-navy-500">
+        Money arrives on today's statement. MoneyMap takes a fresh look and decides whether it's worth a message.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="secondary" icon={<Banknote size={16} aria-hidden />} onClick={() => onSimulate("income")}>{income}</Button>
+        <Button size="sm" variant="secondary" icon={<Gift size={16} aria-hidden />} onClick={() => onSimulate("windfall")}>Bonus arrives</Button>
+      </div>
+    </div>
+  );
+}
+
 export function DemoModeButton() {
   const [open, setOpen] = useState(false);
-  const { dispatch } = useStore();
+  const { dispatch, state } = useStore();
+  const toast = useToast();
+  // Tell the presenter what MoneyMap decided once the event has been processed (locally or by the server).
+  const pending = useRef(false);
+  const latest = state.triggerEvents[0];
+  useEffect(() => {
+    if (!pending.current || !latest) return;
+    pending.current = false;
+    toast(latest.outcome === "notified" ? `Message sent: ${latest.reason}` : `Checked — nothing sent. ${latest.reason}`, latest.outcome === "notified" ? "success" : "info");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latest?.id]);
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const inApp = pathname.startsWith("/app");
@@ -86,6 +115,13 @@ export function DemoModeButton() {
           For the presenting team. Load a synthetic customer's full financial context instantly, so judges can see MoneyMap decide without waiting.
         </p>
         <div className="max-h-[60vh] overflow-y-auto pr-1">
+          <SimulateActivity
+            onSimulate={(event) => {
+              pending.current = true;
+              dispatch({ type: "simulate_event", event });
+              setOpen(false);
+            }}
+          />
           <DemoPersonaList onDone={() => setOpen(false)} />
         </div>
         <div className="mt-4 flex justify-between gap-3 border-t border-mist pt-4">

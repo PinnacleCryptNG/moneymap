@@ -14,12 +14,14 @@ import type {
   ProductCategory,
   RecommendationRecord,
   Signal,
+  Trigger,
 } from "../types";
 import { SUBJECT_TO_ZENITH } from "../data/products";
 import { clamp, formatNaira } from "../utils/format";
 import { buildFinancialContext, type FinancialContext, hasSignal } from "./context";
 import { detectNeeds, type DetectedNeed, GOAL_NEEDS, isAssetGoal, NEED_LABELS } from "./needs";
 import { EXAMPLE_TENOR_MONTHS, goalPlan, principalSpread } from "./plan";
+import { triggerTimingReason } from "./triggers";
 
 export const MODEL_VERSION = "rules-v2.0-prototype";
 
@@ -149,6 +151,8 @@ export interface EngineInput {
   products: Product[];
   history: RecommendationRecord[];
   now?: Date;
+  /** An account event that prompted this run (step 3), e.g. salary landing. Only affects timing. */
+  trigger?: Trigger | null;
   /** The customer explicitly asked for more options (bypasses frequency caps, not hard rules). */
   requestedMore?: boolean;
 }
@@ -309,6 +313,8 @@ function assessTiming(p: Product, ctx: FinancialContext): Timing {
       return { status: "neutral", reason: "There's no planned expense that makes financing relevant now." };
     }
     case "savings": {
+      if (ctx.trigger && (hasSignal(ctx, "regular_surplus") || ctx.goal?.type === "save_more"))
+        return { status: "appropriate", reason: triggerTimingReason(ctx.trigger) };
       if (ctx.goal?.type === "save_more" && hasSignal(ctx, "regular_surplus"))
         return {
           status: "appropriate",
@@ -627,6 +633,9 @@ function buildTrace(
   ].filter(Boolean);
   return [
     { stage: "Customer", result: `${c.firstName}, ${c.age} · ${c.occupation}`, status: "done" },
+    ...(ctx.trigger
+      ? [{ stage: "Trigger", result: `${ctx.trigger.description}: ${formatNaira(ctx.trigger.amount)} arrived — MoneyMap took a fresh look`, status: "done" as const }]
+      : []),
     { stage: "Permitted data", result: `${permitted} of 5 categories allowed`, status: permitted ? "done" : "empty" },
     {
       stage: "Financial context",
@@ -676,7 +685,7 @@ function buildTrace(
 
 export function runEngine(input: EngineInput): EngineResult {
   const now = input.now ?? new Date();
-  const context = buildFinancialContext(input.customer, input.permissions, input.goal);
+  const context = buildFinancialContext(input.customer, input.permissions, input.goal, input.trigger ?? null);
   const needs = detectNeeds(context);
   const evaluations = input.products.map((p) => evaluateProduct(p, context, needs, input.preferences, input.history, now));
   const ranked = [...evaluations].sort(

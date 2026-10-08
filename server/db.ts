@@ -24,6 +24,9 @@ import type {
   Product,
   RecommendationRecord,
   RecommendationStatus,
+  AppNotification,
+  Trigger,
+  TriggerEvent,
 } from "../src/types";
 
 export const PERMISSION_KEYS: PermissionKey[] = [
@@ -50,6 +53,31 @@ CREATE TABLE IF NOT EXISTS transactions (
   channel TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS transactions_customer ON transactions(customer_id, date);
+CREATE TABLE IF NOT EXISTS trigger_events (
+  id TEXT PRIMARY KEY,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  transaction_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  description TEXT NOT NULL,
+  outcome TEXT NOT NULL CHECK (outcome IN ('notified', 'held_back')),
+  reason TEXT NOT NULL,
+  notification_id TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS notifications (
+  id TEXT PRIMARY KEY,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  event_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  product_name TEXT NOT NULL,
+  recommendation_id TEXT,
+  created_at TEXT NOT NULL,
+  read_at TEXT
+);
 CREATE TABLE IF NOT EXISTS consents (
   customer_id TEXT NOT NULL REFERENCES customers(id),
   permission TEXT NOT NULL,
@@ -388,6 +416,10 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
   function resetCustomer(customerId: string) {
     tx(() => {
       db.prepare("DELETE FROM recommendation_feedback WHERE customer_id = ?").run(customerId);
+      db.prepare("DELETE FROM notifications WHERE customer_id = ?").run(customerId);
+      db.prepare("DELETE FROM trigger_events WHERE customer_id = ?").run(customerId);
+      // Lines that arrived live (bank feed or Demo Mode) go; the seeded six-month statement stays.
+      db.prepare("DELETE FROM transactions WHERE customer_id = ? AND id LIKE 'LIVE_%'").run(customerId);
       db.prepare("DELETE FROM recommendation_reasons WHERE recommendation_id IN (SELECT id FROM recommendations WHERE customer_id = ?)").run(customerId);
       db.prepare("DELETE FROM product_interactions WHERE customer_id = ?").run(customerId);
       db.prepare("DELETE FROM transaction_signals WHERE customer_id = ?").run(customerId);
@@ -404,11 +436,83 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
 
   function resetAll() {
     tx(() => {
-      for (const t of ["recommendation_feedback", "recommendation_reasons", "product_interactions", "transaction_signals", "financial_profiles", "product_eligibility", "model_versions", "recommendations", "applications", "transactions", "goals", "consent_events", "consents", "preferences", "product_versions", "products", "customers", "audit_log"]) {
+      for (const t of ["notifications", "trigger_events", "recommendation_feedback", "recommendation_reasons", "product_interactions", "transaction_signals", "financial_profiles", "product_eligibility", "model_versions", "recommendations", "applications", "transactions", "goals", "consent_events", "consents", "preferences", "product_versions", "products", "customers", "audit_log"]) {
         db.exec(`DELETE FROM ${t}`);
       }
     });
     seed();
+  }
+
+  // ---- Live transactions and triggers (step 3) ----
+  function addTransaction(customerId: string, t: Omit<RawTransaction, "id">): RawTransaction {
+    const row: RawTransaction = { ...t, id: id("LIVE") };
+    db.prepare("INSERT INTO transactions (id, customer_id, date, narration, amount, direction, channel) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+      row.id, customerId, row.date, row.narration, row.amount, row.direction, row.channel,
+    );
+    return row;
+  }
+
+  function recordTrigger(
+    customerId: string,
+    transactionId: string,
+    trigger: Trigger,
+    decision: { outcome: TriggerEvent["outcome"]; reason: string },
+    notification: Omit<AppNotification, "id" | "customer_id" | "event_id" | "created_at"> | null,
+  ): { event: TriggerEvent; notification: AppNotification | null } {
+    const t = now();
+    const eventId = id("EVT");
+    const n: AppNotification | null = notification && { ...notification, id: id("NTF"), customer_id: customerId, event_id: eventId, created_at: t };
+    tx(() => {
+      db.prepare(
+        "INSERT INTO trigger_events (id, customer_id, transaction_id, type, amount, description, outcome, reason, notification_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      ).run(eventId, customerId, transactionId, trigger.type, trigger.amount, trigger.description, decision.outcome, decision.reason, n?.id ?? null, t);
+      if (n)
+        db.prepare(
+          "INSERT INTO notifications (id, customer_id, event_id, kind, title, body, product_id, product_name, recommendation_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        ).run(n.id, customerId, eventId, n.kind, n.title, n.body, n.product_id, n.product_name, n.recommendation_id ?? null, t);
+    });
+    audit("system", `trigger.${decision.outcome}`, `${customerId}: ${trigger.description} ${trigger.amount} — ${decision.reason}`);
+    return { event: listTriggerEvents(customerId).find((e) => e.id === eventId)!, notification: n };
+  }
+
+  function listTriggerEvents(customerId?: string): TriggerEvent[] {
+    const rows = (customerId
+      ? db.prepare("SELECT * FROM trigger_events WHERE customer_id = ? ORDER BY created_at DESC, rowid DESC").all(customerId)
+      : db.prepare("SELECT * FROM trigger_events ORDER BY created_at DESC, rowid DESC LIMIT 200").all()) as Record<string, string | number | null>[];
+    return rows.map((r) => ({
+      id: String(r.id),
+      customer_id: String(r.customer_id),
+      transaction_id: String(r.transaction_id),
+      type: r.type as TriggerEvent["type"],
+      amount: Number(r.amount),
+      description: String(r.description),
+      outcome: r.outcome as TriggerEvent["outcome"],
+      reason: String(r.reason),
+      ...(r.notification_id ? { notification_id: String(r.notification_id) } : {}),
+      created_at: String(r.created_at),
+    }));
+  }
+
+  function listNotifications(customerId: string): AppNotification[] {
+    return (db.prepare("SELECT * FROM notifications WHERE customer_id = ? ORDER BY created_at DESC, rowid DESC").all(customerId) as Record<string, string | null>[]).map(
+      (r) => ({
+        id: String(r.id),
+        customer_id: String(r.customer_id),
+        event_id: String(r.event_id),
+        kind: r.kind as AppNotification["kind"],
+        title: String(r.title),
+        body: String(r.body),
+        product_id: String(r.product_id),
+        product_name: String(r.product_name),
+        ...(r.recommendation_id ? { recommendation_id: String(r.recommendation_id) } : {}),
+        created_at: String(r.created_at),
+        ...(r.read_at ? { read_at: String(r.read_at) } : {}),
+      }),
+    );
+  }
+
+  function markNotificationRead(customerId: string, notificationId: string): boolean {
+    return db.prepare("UPDATE notifications SET read_at = COALESCE(read_at, ?) WHERE id = ? AND customer_id = ?").run(now(), notificationId, customerId).changes > 0;
   }
 
   // ---- Customers ----
@@ -801,6 +905,11 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
     resetAll,
     getCustomer,
     listCustomers,
+    addTransaction,
+    recordTrigger,
+    listTriggerEvents,
+    listNotifications,
+    markNotificationRead,
     getPermissions,
     setPermissions,
     consentHistory,

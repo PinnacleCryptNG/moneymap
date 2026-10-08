@@ -37,6 +37,18 @@ Consent applies to the statement as well: money-in lines need `income_patterns`,
 
 In production, step 1's input would come from a core-banking adapter instead of the `transactions` table seeded from `src/data/ledgers.ts`.
 
+## Event triggers (`src/engine/triggers.ts`)
+
+MoneyMap doesn't wait for the customer to open the app. When a new statement line arrives (`POST /events/transactions` from a core-banking adapter, or `POST /demo/events` in Demo Mode):
+
+1. **Store** the line with the customer's statement.
+2. **Detect.** Salary or allowance landing is `income_received`. A one-off credit of at least half the usual monthly income is a `windfall`. Everything else (everyday spending, small transfers) is stored but triggers nothing.
+3. **Re-run the engine** with the trigger. For savings products the trigger becomes the timing reason ("Your salary of ₦450,000 has just arrived…") and appears as a *Trigger* step in the trace. The trigger is ignored if the customer hasn't shared income patterns.
+4. **Decide whether to message.** Only when all of these hold: income data is shared, the engine recommends something (all hard rules, fatigue and window caps still apply), and no message was sent in the last 7 days. A new match issues a stored recommendation; an open one gets a reminder.
+5. **Log** every trigger with its outcome (`notified` or `held_back`) and the reason, so staying quiet is visible and auditable.
+
+The same pure functions run in the server and in the browser-only demo.
+
 ## Request flow: `POST /api/v1/recommendations`
 
 1. **Auth.** A signed bearer token identifies the customer. In production this would be the Zenith app's OAuth 2.0 / OpenID Connect session.
@@ -64,6 +76,7 @@ In production, step 1's input would come from a core-banking adapter instead of 
 | ProductInteraction | `product_interactions`, `applications` | viewed / explored / eligibility_checked / requested |
 | ModelVersion | `model_versions` | Weights and thresholds for each engine version used |
 | AuditLog | `audit_log` | Hash-chained |
+| (step 3) | `trigger_events`, `notifications` | Every trigger with its outcome and reason; messages sent to the customer |
 
 ## Endpoints
 
@@ -78,7 +91,8 @@ Interactive docs (OpenAPI / Swagger) are at **`/docs`** on the running server.
 | Recommendations | `POST /recommendations`, `GET /recommendations`, `GET /recommendations/:id`, `GET /recommendations/:id/explanation`, `POST /recommendations/:id/feedback`, `POST /recommendations/:id/explored` |
 | Products | `GET /products`, `GET /products/:id`, `POST /products/:id/eligibility-check`, `POST /products/:id/apply`, `GET /applications` |
 | Preferences | `GET /preferences`, `PATCH /preferences` |
-| Bank (admin) | `GET /admin/metrics`, `GET /admin/recommendations`, `GET /admin/audit`, `GET /admin/model-versions`, `PATCH /admin/products/:id` |
+| Events | `POST /events/transactions` (bank feed, admin token), `POST /demo/events` (`income` or `windfall`), `GET /events`, `GET /notifications`, `POST /notifications/:id/read` |
+| Bank (admin) | `GET /admin/metrics`, `GET /admin/recommendations`, `GET /admin/audit`, `GET /admin/events`, `GET /admin/model-versions`, `PATCH /admin/products/:id` |
 
 All paths are under `/api/v1`. Request bodies are schema-validated and unknown fields are rejected. Errors come back as `{ "error", "message" }`.
 

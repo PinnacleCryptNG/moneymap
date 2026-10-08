@@ -1,8 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
-import { getCustomer } from "../../data/customers";
+import { getCustomer, PERSONA_BASES, profileFromLedger } from "../../data/customers";
+import { buildLedger, DEMO_TODAY } from "../../data/ledgers";
 import { DEFAULT_PREFERENCES } from "../../data/defaults";
 import { SEED_PRODUCTS } from "../../data/products";
 import type {
+  AppNotification,
   Application,
   AuditEntry,
   ConsentRecord,
@@ -14,15 +16,19 @@ import type {
   Preferences,
   Product,
   RecommendationRecord,
+  RawTransaction,
   RecommendationStatus,
+  TriggerEvent,
+  CustomerProfile,
 } from "../../types";
-import { REMIND_LATER_DAYS } from "../../engine";
+import { REMIND_LATER_DAYS, runEngine, toRecord } from "../../engine";
+import { decideOnTrigger, detectTrigger, simulatedCredit } from "../../engine/triggers";
 import { API_MODE, http, HttpError, type ServerSnapshot } from "../../services/http";
 import { syncAction } from "../../services/sync";
 import { uid } from "../../utils/format";
 
 export interface AppState {
-  schema: 4;
+  schema: 5;
   customerId: string;
   onboarded: boolean;
   permissions: Permissions;
@@ -32,6 +38,11 @@ export interface AppState {
   preferences: Preferences;
   recommendations: RecommendationRecord[];
   applications: Application[];
+  /** Statement lines that arrived after the six-month history (step 3). */
+  liveTransactions: RawTransaction[];
+  /** Messages MoneyMap sent, and every trigger it noticed with what it decided. */
+  notifications: AppNotification[];
+  triggerEvents: TriggerEvent[];
   products: Product[];
   productVersions: Product[];
   audit: AuditEntry[];
@@ -51,7 +62,8 @@ const NO_PERMISSIONS: Permissions = {
 
 function customerState(customerId: string): Pick<
   AppState,
-  "customerId" | "onboarded" | "permissions" | "consentLog" | "goals" | "activeGoalId" | "preferences" | "recommendations" | "applications"
+  | "customerId" | "onboarded" | "permissions" | "consentLog" | "goals" | "activeGoalId" | "preferences" | "recommendations" | "applications"
+  | "liveTransactions" | "notifications" | "triggerEvents"
 > {
   return {
     customerId,
@@ -63,12 +75,21 @@ function customerState(customerId: string): Pick<
     preferences: DEFAULT_PREFERENCES,
     recommendations: [],
     applications: [],
+    liveTransactions: [],
+    notifications: [],
+    triggerEvents: [],
   };
+}
+
+/** The customer as MoneyMap reads them: the six-month statement plus anything that has arrived since. */
+function profileFor(customerId: string, live: RawTransaction[]): CustomerProfile {
+  const base = PERSONA_BASES.find((b) => b.id === customerId);
+  return base && live.length ? profileFromLedger(base, [...buildLedger(base.id), ...live]) : getCustomer(customerId);
 }
 
 function initialState(): AppState {
   return {
-    schema: 4,
+    schema: 5,
     ...customerState("CUST_SARAH"),
     products: SEED_PRODUCTS,
     productVersions: [],
@@ -78,14 +99,14 @@ function initialState(): AppState {
   };
 }
 
-export const STORAGE_KEY = "moneymap:v4";
+export const STORAGE_KEY = "moneymap:v5";
 
 function load(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as AppState;
-      if (parsed.schema === 4) return { ...parsed, syncError: null };
+      if (parsed.schema === 5) return { ...parsed, syncError: null };
     }
   } catch {
     /* storage unavailable — fall back to defaults */
@@ -109,6 +130,8 @@ export type Action =
   | { type: "feedback"; id: string; feedback: FeedbackType }
   | { type: "apply"; productId: string; productName: string }
   | { type: "set_product_status"; productId: string; status: Product["status"] }
+  | { type: "simulate_event"; event: "income" | "windfall" }
+  | { type: "read_notification"; id: string }
   | { type: "set_simulate_error"; value: boolean }
   | { type: "reset" }
   | { type: "hydrate"; snapshot: ServerSnapshot }
@@ -296,6 +319,10 @@ function reducer(state: AppState, action: Action): AppState {
         audit: audit(state, "admin", "product.status_changed", `${product.name} → ${product.status} (v${product.version}).`),
       };
     }
+    case "simulate_event":
+      return simulateEvent(state, action.event, now);
+    case "read_notification":
+      return { ...state, notifications: state.notifications.map((n) => (n.id === action.id && !n.read_at ? { ...n, read_at: now } : n)) };
     case "set_simulate_error":
       return { ...state, simulateError: action.value };
     case "reset":
@@ -314,10 +341,81 @@ function reducer(state: AppState, action: Action): AppState {
   }
 }
 
+/**
+ * Step 3, browser-only mode: money arrives, MoneyMap takes a fresh look and decides whether to say anything.
+ * Mirrors POST /demo/events on the server (same pure functions); in API mode the server's answer replaces this.
+ */
+function simulateEvent(state: AppState, kind: "income" | "windfall", now: string): AppState {
+  const before = profileFor(state.customerId, state.liveTransactions);
+  const tx = simulatedCredit(kind, before, DEMO_TODAY, uid("LIVE"));
+  const liveTransactions = [...state.liveTransactions, tx];
+  const next = { ...state, liveTransactions };
+  const trigger = detectTrigger(tx, before);
+  if (!trigger) return next;
+  const goal = state.goals.find((g) => g.id === state.activeGoalId) ?? state.goals[0] ?? null;
+  const result = runEngine({
+    customer: profileFor(state.customerId, liveTransactions),
+    permissions: state.permissions,
+    goal,
+    preferences: state.preferences,
+    products: state.products,
+    history: state.recommendations,
+    trigger,
+  });
+  const decision = decideOnTrigger({
+    trigger,
+    permissions: state.permissions,
+    result,
+    history: state.recommendations,
+    notifications: state.notifications,
+    now: new Date(now),
+  });
+  const eventId = uid("EVT");
+  let recommendations = state.recommendations;
+  let notification: AppNotification | null = null;
+  if (decision.outcome === "notified" && result.top) {
+    const p = result.top.product;
+    let rec = recommendations.find((h) => h.product_id === p.product_id && !h.feedback && h.status !== "applied");
+    if (!rec) {
+      rec = { ...toRecord(result, state.customerId)!, id: uid("REC"), created_at: now, status: "recommended" };
+      recommendations = [rec, ...recommendations];
+    }
+    notification = {
+      id: uid("NTF"),
+      customer_id: state.customerId,
+      event_id: eventId,
+      kind: decision.kind,
+      title: decision.title,
+      body: decision.body,
+      product_id: p.product_id,
+      product_name: p.name,
+      recommendation_id: rec.id,
+      created_at: now,
+    };
+  }
+  const event: TriggerEvent = {
+    ...trigger,
+    id: eventId,
+    customer_id: state.customerId,
+    transaction_id: tx.id,
+    created_at: now,
+    outcome: decision.outcome,
+    reason: decision.reason,
+    ...(notification ? { notification_id: notification.id } : {}),
+  };
+  return {
+    ...next,
+    recommendations,
+    notifications: notification ? [notification, ...state.notifications] : state.notifications,
+    triggerEvents: [event, ...state.triggerEvents],
+    audit: audit(state, "system", `trigger.${decision.outcome}`, `${trigger.description} ${trigger.amount} — ${decision.reason}`),
+  };
+}
+
 interface Store {
   state: AppState;
   dispatch: (action: Action) => void;
-  customer: ReturnType<typeof getCustomer>;
+  customer: CustomerProfile;
   activeGoal: FinancialGoal | null;
   /** Resolves once every queued server write has finished (API mode). */
   synced: () => Promise<unknown>;
@@ -372,11 +470,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [state]);
 
+  const customer = useMemo(() => profileFor(state.customerId, state.liveTransactions), [state.customerId, state.liveTransactions]);
   const value = useMemo<Store>(() => {
-    const customer = getCustomer(state.customerId);
     const activeGoal = state.goals.find((g) => g.id === state.activeGoalId) ?? state.goals[0] ?? null;
     return { state, dispatch, customer, activeGoal, synced: () => queue.current.catch(() => undefined) };
-  }, [state, dispatch]);
+  }, [state, dispatch, customer]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

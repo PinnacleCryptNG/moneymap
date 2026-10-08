@@ -50,6 +50,15 @@ check("Tolu → no recommendation", n.json?.decision?.status === "no_match" && n
 await api("POST", "/goals", { type: "major_expense", expense_kind: "vehicle", label: "Buy a car", amount: 6000000, timeline_months: 12 }, tolu);
 check("Tolu + car goal → Asset Finance", (await api("POST", "/recommendations", {}, tolu)).json?.decision?.product?.id === "ZEN_ASSET_FINANCE");
 
+const sarahEv = await session("CUST_SARAH");
+const ev = await api("POST", "/demo/events", { type: "income" }, sarahEv);
+check("Salary lands → one message", ev.json?.event?.outcome === "notified" && ev.json?.notification?.product_id === "ZEN_SAVE4ME", ev.json?.event?.reason);
+const ev2 = await api("POST", "/demo/events", { type: "windfall" }, sarahEv);
+check("Bonus right after → held back", ev2.json?.event?.outcome === "held_back", ev2.json?.event?.reason);
+const toluEv = await session("CUST_TOLU");
+const ev3 = await api("POST", "/demo/events", { type: "windfall" }, toluEv);
+check("Tolu bonus → nothing sent", ev3.json?.event?.outcome === "held_back" && ev3.json?.notification === null);
+
 const off = { account_activity: false, income_patterns: false, spending_patterns: false, existing_products: false, financial_goals: false };
 const sarah2 = await session("CUST_SARAH");
 await api("POST", "/consent", off, sarah2);

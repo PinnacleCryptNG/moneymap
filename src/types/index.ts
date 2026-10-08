@@ -307,3 +307,40 @@ export interface AuditEntry {
   action: string;
   detail: string;
 }
+
+// ---------------- Event triggers (step 3) ----------------
+
+/** Something that happened on the account that is worth a fresh look. */
+export type TriggerType = "income_received" | "windfall";
+
+export interface Trigger {
+  type: TriggerType;
+  amount: number;
+  /** Readable, e.g. "Salary — Brightpath Logistics Ltd". */
+  description: string;
+}
+
+/** Every trigger is logged with what MoneyMap decided — including when it chose to stay quiet. */
+export interface TriggerEvent extends Trigger {
+  id: string;
+  customer_id: string;
+  transaction_id: string;
+  created_at: string;
+  outcome: "notified" | "held_back";
+  reason: string;
+  notification_id?: string;
+}
+
+export interface AppNotification {
+  id: string;
+  customer_id: string;
+  event_id: string;
+  kind: "new_recommendation" | "reminder";
+  title: string;
+  body: string;
+  product_id: string;
+  product_name: string;
+  recommendation_id?: string;
+  created_at: string;
+  read_at?: string;
+}

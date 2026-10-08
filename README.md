@@ -50,6 +50,14 @@ Every screen has a small **Demo** button (bottom left). It is for the presenting
 
 There are two demo customers: one gets a recommendation and one doesn't. The engine still handles students (Aspire): a student profile is part of the bank view's synthetic cohort and is covered by the unit tests.
 
+**Money arriving (step 3).** With a customer loaded, Demo Mode has *Salary lands* and *Bonus arrives*. Each one adds a line to today's statement as a core-banking feed would. MoneyMap takes a fresh look and decides whether the moment deserves a message:
+
+- Sarah's salary lands → one message: "Your money has just landed — SAVE4ME could help", with the payday as the *why now*. A bell and a dashboard banner show it.
+- Sarah's bonus a moment later → noticed, nothing sent: MoneyMap sends at most one message a week.
+- Tolu's bonus → noticed, nothing sent: nothing in the catalogue would improve his situation.
+
+Everything MoneyMap noticed, and why it did or didn't message, is listed under **Messages → What MoneyMap noticed**.
+
 Live demo extra: give Tolu a new goal ("Buy a car", ₦6,000,000 in 12 months) and the answer changes to **Asset Finance**. Give Sarah "Pay my rent", ₦1,800,000 in 3 months, and it changes to **Personal Loan**, with SAVE4ME locked out because she needs the money soon.
 
 ## Product catalogue (Phase 2 §10)
