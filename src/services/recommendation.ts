@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../app/providers/store";
-import { runEngine, type EngineInput, type EngineResult } from "../engine";
+import { runEngine, toRecord, type EngineInput, type EngineResult } from "../engine";
 import type { RecommendationRecord } from "../types";
 import { postRecommendations } from "./api";
 
@@ -29,7 +29,7 @@ export function useEngineResult(requestedMore = false): EngineResult {
 /** The live recommendation for this customer, matching the decision engine's latest output. */
 export function findActiveRecord(records: RecommendationRecord[], productId: string | undefined) {
   if (!productId) return undefined;
-  return records.find((r) => r.productId === productId && !r.feedback);
+  return records.find((r) => r.product_id === productId && !r.feedback);
 }
 
 /**
@@ -37,7 +37,7 @@ export function findActiveRecord(records: RecommendationRecord[], productId: str
  * and records an exposure the first time a product is shown.
  */
 export function useRecommendation(requestedMore = false) {
-  const { state, dispatch } = useStore();
+  const { state, dispatch, customer } = useStore();
   const input = useEngineInput(requestedMore);
   const [result, setResult] = useState<EngineResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,16 +65,9 @@ export function useRecommendation(requestedMore = false) {
       .then((r) => {
         if (cancelled) return;
         setResult(r);
-        if (r.top && !findActiveRecord(recordsRef.current, r.top.product.product_id)) {
-          dispatch({
-            type: "record_recommendation",
-            record: {
-              productId: r.top.product.product_id,
-              productName: r.top.product.name,
-              category: r.top.product.category,
-              score: r.top.score,
-            },
-          });
+        const record = toRecord(r, customer.id);
+        if (record && !findActiveRecord(recordsRef.current, record.product_id)) {
+          dispatch({ type: "record_recommendation", record });
         }
       })
       .catch((e: Error) => !cancelled && setError(e.message))
@@ -87,7 +80,7 @@ export function useRecommendation(requestedMore = false) {
 
   const retry = useCallback(() => setAttempt((a) => a + 1), []);
   const record = findActiveRecord(state.recommendations, result?.top?.product.product_id) ??
-    state.recommendations.find((r) => r.productId === result?.top?.product.product_id);
+    state.recommendations.find((r) => r.product_id === result?.top?.product.product_id);
 
   return { result, error, loading, retry, record };
 }

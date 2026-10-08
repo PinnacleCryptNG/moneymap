@@ -1,12 +1,14 @@
-import { Pencil, Plus } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { useStore } from "../../app/providers/store";
 import { Badge } from "../../components/shared/Badge";
-import { ButtonLink } from "../../components/shared/Button";
 import { PageHeader } from "../../components/shared/PageHeader";
 import { useToast } from "../../components/shared/Toast";
+import { SUBJECT_TO_ZENITH } from "../../data/products";
 import { NEED_LABELS } from "../../engine";
-import { formatDate } from "../../utils/format";
+import { formatNaira } from "../../utils/format";
 import { CATEGORY_META } from "../../utils/labels";
+
+const human = (s: string) => s.replace(/_/g, " ");
 
 export function AdminProductsPage() {
   const { state, dispatch } = useStore();
@@ -15,58 +17,83 @@ export function AdminProductsPage() {
     <div>
       <PageHeader
         eyebrow="Catalogue"
-        title="Product catalogue"
-        body="The structured source of truth the engine matches against. Every change is versioned and audited."
-        actions={<ButtonLink to="/admin/products/new" icon={<Plus size={20} aria-hidden />}>New product</ButtonLink>}
+        title="Zenith products in MoneyMap"
+        body="The six products the engine matches against. Published information is separated from MoneyMap's own matching rules. Status changes take effect immediately and are versioned and audited."
       />
-      <p className="mb-4 rounded-[12px] border border-[#fbe2b6] bg-amber-50 p-3 text-small text-amber-700">
-        Prototype catalogue. Actual Zenith product names, terms, eligibility, fees and requirements must be sourced from the bank's approved catalogue before production.
+      <p className="mb-6 rounded-[12px] border border-[#fbe2b6] bg-amber-50 p-3 text-small text-amber-700">
+        Published facts come from press and comparison sites found during the build, not Zenith's own pages. Confirm each against Zenith's approved product information before a pilot. {SUBJECT_TO_ZENITH}
       </p>
-      <div className="card overflow-x-auto">
-        <table className="w-full min-w-[760px] text-small">
-          <thead>
-            <tr className="border-b border-mist text-left text-navy-500">
-              <th scope="col" className="px-5 py-3 font-medium">Product</th>
-              <th scope="col" className="py-3 font-medium">Category</th>
-              <th scope="col" className="py-3 font-medium">Needs served</th>
-              <th scope="col" className="py-3 font-medium">Version</th>
-              <th scope="col" className="py-3 font-medium">Status</th>
-              <th scope="col" className="px-5 py-3 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-mist">
-            {state.products.map((p) => (
-              <tr key={p.product_id}>
-                <th scope="row" className="px-5 py-3 text-left">
-                  <span className="block font-semibold">{p.name}</span>
-                  <span className="font-mono text-[12px] font-normal text-navy-500">{p.product_id}</span>
-                </th>
-                <td className="py-3">{CATEGORY_META[p.category].label}</td>
-                <td className="py-3 pr-3 text-navy-700">{p.financial_needs.map((n) => NEED_LABELS[n]).join(", ")}</td>
-                <td className="py-3 tabular-nums">v{p.version} <span className="block text-caption !font-normal text-navy-500">{formatDate(p.updated_at)}</span></td>
-                <td className="py-3">
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={p.status === "active"}
-                    aria-label={`${p.name} active`}
-                    onClick={() => {
-                      dispatch({ type: "upsert_product", product: { ...p, status: p.status === "active" ? "inactive" : "active" } });
-                      toast(`${p.name} ${p.status === "active" ? "deactivated" : "activated"} — engine updated.`, "info");
-                    }}
-                    className="inline-flex min-h-11 items-center"
-                  >
-                    {p.status === "active" ? <Badge tone="green">Active</Badge> : <Badge>Inactive</Badge>}
-                  </button>
-                </td>
-                <td className="px-5 py-3 text-right">
-                  <ButtonLink to={`/admin/products/${p.product_id}`} size="sm" variant="tertiary" icon={<Pencil size={16} aria-hidden />}>Edit</ButtonLink>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ul className="flex flex-col gap-4">
+        {state.products.map((p) => {
+          const Icon = CATEGORY_META[p.category].icon;
+          const e = p.eligibility;
+          const published = [
+            e.segments && `For ${e.segments.join(" / ")} customers`,
+            (e.minimum_age !== undefined || e.maximum_age !== undefined) && `Age ${e.minimum_age ?? 0}${e.maximum_age ? `–${e.maximum_age}` : "+"}`,
+            e.salary_account_required && "Salary paid into a Zenith account",
+          ].filter(Boolean) as string[];
+          const guardrails = [
+            p.suitability.max_principal_to_income && `Principal repayment ≤ ${Math.round(p.suitability.max_principal_to_income * 100)}% of income`,
+            p.suitability.max_balance && `Goal must fit reported ${formatNaira(p.suitability.max_balance)} balance cap`,
+          ].filter(Boolean) as string[];
+          return (
+            <li key={p.product_id} className="card p-5">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-blue-50 text-blue"><Icon size={20} aria-hidden /></span>
+                  <div>
+                    <p className="font-semibold">{p.name} <span className="font-mono text-[12px] font-normal text-navy-500">{p.product_id} · v{p.version}</span></p>
+                    <p className="text-small text-navy-500">{CATEGORY_META[p.category].label} · {p.purpose}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={p.status === "active"}
+                  aria-label={`${p.name} active`}
+                  onClick={() => {
+                    const next = p.status === "active" ? "inactive" : "active";
+                    dispatch({ type: "set_product_status", productId: p.product_id, status: next });
+                    toast(`${p.name} ${next === "active" ? "activated" : "deactivated"} — the engine has updated.`, "info");
+                  }}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-mist px-3 text-small hover:bg-cloud"
+                >
+                  {p.status === "active" ? <Badge tone="green">Active</Badge> : <Badge>Inactive</Badge>}
+                  <span className="text-navy-500">{p.status === "active" ? "Deactivate" : "Activate"}</span>
+                </button>
+              </div>
+              <div className="grid grid-cols-1 gap-4 text-small md:grid-cols-3">
+                <div className="min-w-0">
+                  <p className="mb-1 font-semibold">Published information</p>
+                  {p.published.length === 0 ? (
+                    <p className="text-navy-500">None found in public sources. Needs Zenith's approved details.</p>
+                  ) : (
+                    <ul className="flex flex-col gap-1 text-navy-700">
+                      {p.published.map((f) => (
+                        <li key={f.text}>
+                          {f.text}{" "}
+                          <a href={f.source} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 text-blue-600 hover:underline">source<ExternalLink size={11} aria-hidden /></a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="mb-1 font-semibold">Eligibility the engine checks</p>
+                  <p className="text-navy-700"><span className="text-navy-500">Published: </span>{published.length ? published.join("; ") : "none"}</p>
+                  <p className="mt-1 text-navy-700"><span className="text-navy-500">MoneyMap guardrails: </span>{guardrails.length ? guardrails.join("; ") : "none"}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="mb-1 font-semibold">Matching rules</p>
+                  <p className="text-navy-700"><span className="text-navy-500">Needs: </span>{p.financial_needs.map((n) => NEED_LABELS[n]).join(", ")}</p>
+                  <p className="mt-1 text-navy-700"><span className="text-navy-500">Recommended when: </span>{p.recommended_when.map(human).join(", ")}</p>
+                  {p.not_recommended_when.length > 0 && <p className="mt-1 text-navy-700"><span className="text-navy-500">Not when: </span>{p.not_recommended_when.map(human).join(", ")}</p>}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

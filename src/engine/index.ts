@@ -1,8 +1,9 @@
 // Stages 3–5 — MATCH, DECIDE, EXPLAIN.
-// Prototype rules + weighted scoring (Phase 1). Weights and thresholds are prototype values
-// that must be validated with approved data and controlled testing before production.
+// Transparent rules + weighted scoring. Weights and thresholds are prototype values that must be
+// validated with approved data and controlled testing before production.
 import type {
   CustomerProfile,
+  EligibilityStatus,
   FeedbackType,
   FinancialGoal,
   FinancialNeed,
@@ -14,12 +15,13 @@ import type {
   RecommendationRecord,
   Signal,
 } from "../types";
+import { SUBJECT_TO_ZENITH } from "../data/products";
 import { clamp, formatNaira } from "../utils/format";
 import { buildFinancialContext, type FinancialContext, hasSignal } from "./context";
-import { detectNeeds, type DetectedNeed, GOAL_NEEDS, NEED_LABELS } from "./needs";
-import { goalPlan, loanEstimate } from "./plan";
+import { detectNeeds, type DetectedNeed, GOAL_NEEDS, isAssetGoal, NEED_LABELS } from "./needs";
+import { EXAMPLE_TENOR_MONTHS, goalPlan, principalSpread } from "./plan";
 
-export const MODEL_VERSION = "rules-v1.0-prototype";
+export const MODEL_VERSION = "rules-v2.0-prototype";
 
 export const WEIGHTS = {
   needFit: 0.3,
@@ -37,6 +39,7 @@ export const DECISION_WINDOW_DAYS = 7;
 export const FATIGUE_WINDOW_DAYS = 30;
 export const FATIGUE_LIMIT = 3;
 export const CATEGORY_FATIGUE_LIMIT = 2;
+export const REMIND_LATER_DAYS = 3;
 
 export interface ScoreFactors {
   needFit: number;
@@ -49,7 +52,7 @@ export interface ScoreFactors {
   overexposurePenalty: number;
 }
 
-/** Spec §81 — prototype scoring function. */
+/** PRD §81 — prototype scoring function. */
 export function calculateRecommendationScore(f: ScoreFactors): number {
   const score =
     f.needFit * WEIGHTS.needFit +
@@ -69,8 +72,8 @@ export type HardRule =
   | "category_fatigue"
   | "customer_declined"
   | "already_held"
-  | "segment"
   | "ineligible"
+  | "unsuitable"
   | "conflict"
   | "snoozed";
 
@@ -78,11 +81,15 @@ export interface EligibilityCheck {
   label: string;
   status: "pass" | "fail" | "unknown";
   detail: string;
+  /** "published": a condition from a public Zenith source. "guardrail": MoneyMap's own prototype rule. */
+  basis: "published" | "guardrail";
+  source?: string;
 }
 
 export interface Eligibility {
-  status: "eligible" | "needs_confirmation" | "ineligible";
+  status: EligibilityStatus;
   checks: EligibilityCheck[];
+  note: string;
 }
 
 export interface Timing {
@@ -90,17 +97,25 @@ export interface Timing {
   reason: string;
 }
 
+export interface Influence {
+  key: "goal" | "behaviour" | "relationship" | "purpose";
+  label: string;
+  detail: string;
+}
+
 export interface Explanation {
+  whyItFits: string;
+  whyNow: string;
+  influences: Influence[];
   goal: string | null;
-  behaviour: string;
-  pattern: string;
+  context: string[];
   productFit: string;
   timing: string;
   eligibility: string;
   nextSteps: string[];
-  summary: string;
   dataUsed: PermissionKey[];
   estimate?: { label: string; value: string }[];
+  estimateNote?: string;
 }
 
 export type Band = "strong" | "potential" | "low" | "excluded";
@@ -114,12 +129,17 @@ export interface Evaluation {
   eligibility: Eligibility;
   timing: Timing;
   exclusion?: { rule: HardRule; reason: string };
-  basis: string[];
   usedSignals: Signal[];
   whyNot?: string;
 }
 
 export type DecisionStatus = "recommended" | "no_match" | "paused" | "window_cap";
+
+export interface TraceStep {
+  stage: string;
+  result: string;
+  status: "done" | "empty" | "stop";
+}
 
 export interface EngineInput {
   customer: CustomerProfile;
@@ -140,6 +160,7 @@ export interface EngineResult {
   ranked: Evaluation[];
   context: FinancialContext;
   needs: DetectedNeed[];
+  trace: TraceStep[];
   message: string;
   generatedAt: string;
   modelVersion: string;
@@ -147,39 +168,38 @@ export interface EngineResult {
 
 const DAY = 86_400_000;
 
-const SIGNAL_BASIS: Partial<Record<Signal, string>> = {
-  regular_surplus: "Your recent savings pattern",
-  repeated_saving_behaviour: "Your recent savings pattern",
-  consistent_income: "Your income consistency",
-  income_increase: "Your recent income increase",
-  large_idle_balance: "Your account balance pattern",
-  savings_in_everyday_account: "How your savings are held today",
-  business_inflows: "Your business inflows",
-  business_growth: "Your business growth",
-  high_transaction_volume: "Your transaction volume",
-  high_card_spend: "How you pay day to day",
-  no_emergency_buffer: "Your account balance pattern",
-  irregular_income: "Your income pattern",
+export const CATEGORY_LABEL: Record<ProductCategory, string> = {
+  savings: "savings",
+  accounts: "account",
+  financing: "financing",
+  cards: "card",
 };
 
-const CATEGORY_LABEL: Record<ProductCategory, string> = {
-  savings: "savings",
-  investments: "investment",
-  financing: "financing",
-  business: "business banking",
-  cards: "card",
-  other: "other financial service",
-};
+const BEHAVIOUR_SIGNALS: Signal[] = [
+  "consistent_income",
+  "irregular_income",
+  "income_increase",
+  "salary_account",
+  "allowance_income",
+  "regular_surplus",
+  "low_surplus",
+  "repeated_saving_behaviour",
+  "student_activity",
+  "digital_first",
+  "high_card_spend",
+  "no_emergency_buffer",
+  "large_idle_balance",
+];
 
 function daysAgo(iso: string, now: Date) {
   return (now.getTime() - new Date(iso).getTime()) / DAY;
 }
 
-function isDismissal(f?: FeedbackType) {
-  return f === "not_relevant" || f === "dont_want";
+export function isDismissal(f?: FeedbackType) {
+  return f === "not_relevant" || f === "not_wanted";
 }
 
-/** Principal a customer would need to borrow after what they can save before the expense is due. */
+/** Amount a customer would need to finance after what they can save before the expense is due. */
 export function financingGap(ctx: FinancialContext): number | null {
   if (!ctx.goal || ctx.goal.type !== "major_expense") return null;
   const canSave = (ctx.surplus?.average ?? 0) * ctx.goal.timelineMonths;
@@ -190,138 +210,125 @@ export function financingGap(ctx: FinancialContext): number | null {
 function checkEligibility(p: Product, ctx: FinancialContext): Eligibility {
   const checks: EligibilityCheck[] = [];
   const e = p.eligibility;
-  checks.push({
-    label: `Minimum age ${e.minimum_age}`,
-    status: ctx.age >= e.minimum_age ? "pass" : "fail",
-    detail: ctx.age >= e.minimum_age ? "You meet the age requirement." : `You need to be at least ${e.minimum_age}.`,
-  });
-  if (e.account_required) {
-    checks.push({ label: "Existing account", status: "pass", detail: "You have an active account." });
-  }
-  if (!p.target_customer.includes(ctx.segment)) {
+  if (e.segments) {
+    const ok = e.segments.includes(ctx.segment);
     checks.push({
-      label: "Customer type",
-      status: "fail",
-      detail:
-        ctx.segment === "business"
-          ? "This product is designed for personal banking customers."
-          : p.target_customer.every((t) => t === "business")
-            ? "This product is designed for business customers."
-            : "This product isn't designed for your customer type.",
+      label: `For ${e.segments.join(" / ")} customers`,
+      status: ok ? "pass" : "fail",
+      detail: ok ? "Your profile matches who this product is published for." : `It's published as a product for ${e.segments.join(" / ")} customers.`,
+      basis: "published",
+      source: e.source,
     });
   }
-  if (e.minimum_income) {
-    if (!ctx.income) {
-      checks.push({
-        label: `Income of ${formatNaira(e.minimum_income)}+`,
-        status: "unknown",
-        detail: "We'd need to confirm your income — you haven't shared income patterns.",
-      });
-    } else {
-      const ok = ctx.income.average >= e.minimum_income;
-      checks.push({
-        label: `Income of ${formatNaira(e.minimum_income)}+`,
-        status: ok ? "pass" : "fail",
-        detail: ok
-          ? "Your average income meets the minimum."
-          : `Your average monthly income is below the ${formatNaira(e.minimum_income)} minimum.`,
-      });
-    }
+  if (e.minimum_age !== undefined || e.maximum_age !== undefined) {
+    const min = e.minimum_age ?? 0;
+    const max = e.maximum_age ?? 200;
+    const ok = ctx.age >= min && ctx.age <= max;
+    const range = e.maximum_age !== undefined ? `${min}–${max}` : `${min}+`;
+    checks.push({
+      label: `Age ${range}`,
+      status: ok ? "pass" : "fail",
+      detail: ok ? `At ${ctx.age}, you're within the reported age range.` : `The reported age range is ${range}.`,
+      basis: "published",
+      source: e.source,
+    });
   }
-  if (e.minimum_balance) {
-    if (!ctx.activity) {
-      checks.push({
-        label: `Minimum ${formatNaira(e.minimum_balance)} to place`,
-        status: "unknown",
-        detail: "We'd need to confirm available funds — you haven't shared account activity.",
-      });
-    } else {
-      const ok = ctx.activity.averageBalance >= e.minimum_balance;
-      checks.push({
-        label: `Minimum ${formatNaira(e.minimum_balance)} to place`,
-        status: ok ? "pass" : "fail",
-        detail: ok
-          ? "Your typical balance covers the minimum placement."
-          : "Your typical balance is below the minimum placement.",
-      });
-    }
+  if (e.salary_account_required) {
+    const known = ctx.income !== null;
+    const ok = ctx.income?.source === "salary";
+    checks.push({
+      label: "Salary paid into Zenith",
+      status: !known ? "unknown" : ok ? "pass" : "fail",
+      detail: !known
+        ? "We'd need to confirm where your income comes from — you haven't shared income patterns."
+        : ok
+          ? "Your salary is paid into your Zenith account."
+          : "It's reported to require a Zenith account that receives your salary.",
+      basis: "published",
+      source: e.source,
+    });
   }
-  if (e.max_repayment_to_income) {
+
+  // MoneyMap guardrails (prototype suitability rules, not Zenith eligibility).
+  const s = p.suitability;
+  if (s.max_principal_to_income) {
     const gap = financingGap(ctx);
     if (!ctx.income || gap === null) {
       checks.push({
         label: "Affordable repayments",
         status: "unknown",
-        detail: "We'd need your income and planned expense to estimate affordability.",
+        detail: "We'd need your income and a planned expense to check affordability.",
+        basis: "guardrail",
       });
     } else {
-      const est = loanEstimate(Math.max(gap, 1));
-      const ratio = est.monthly / ctx.income.average;
-      const ok = ratio <= e.max_repayment_to_income;
+      const spread = principalSpread(Math.max(gap, 1));
+      const ratio = spread.monthly / ctx.income.average;
+      const ok = ratio <= s.max_principal_to_income;
       checks.push({
         label: "Affordable repayments",
         status: ok ? "pass" : "fail",
         detail: ok
-          ? `Estimated repayment of ${formatNaira(est.monthly)}/month is ${Math.round(ratio * 100)}% of your income (limit ${Math.round(e.max_repayment_to_income * 100)}%).`
-          : `Estimated repayment of ${formatNaira(est.monthly)}/month would be ${Math.round(ratio * 100)}% of your income — above the ${Math.round(e.max_repayment_to_income * 100)}% affordability limit.`,
+          ? `Repaying ${formatNaira(gap)} over ${EXAMPLE_TENOR_MONTHS} months is about ${formatNaira(spread.monthly)} a month before interest — ${Math.round(ratio * 100)}% of your income (MoneyMap's limit: ${Math.round(s.max_principal_to_income * 100)}%).`
+          : `Repaying ${formatNaira(gap)} over ${EXAMPLE_TENOR_MONTHS} months would be about ${formatNaira(spread.monthly)} a month before interest — ${Math.round(ratio * 100)}% of your income, above MoneyMap's ${Math.round(s.max_principal_to_income * 100)}% limit.`,
+        basis: "guardrail",
       });
     }
   }
-  const status = checks.some((c) => c.status === "fail")
+  if (s.max_balance && ctx.goal && ctx.goal.amount > s.max_balance && ctx.goal.type === "save_more") {
+    checks.push({
+      label: "Balance cap fits your goal",
+      status: "fail",
+      detail: `Its reported balance cap (${formatNaira(s.max_balance)}) is below your ${formatNaira(ctx.goal.amount)} goal.`,
+      basis: "guardrail",
+    });
+  }
+
+  const status: EligibilityStatus = checks.some((c) => c.status === "fail")
     ? "ineligible"
     : checks.some((c) => c.status === "unknown")
-      ? "needs_confirmation"
+      ? "to_confirm"
       : "eligible";
-  return { status, checks };
+  const note =
+    checks.filter((c) => c.basis === "published").length === 0
+      ? `No published conditions were found for this product. ${SUBJECT_TO_ZENITH}`
+      : SUBJECT_TO_ZENITH;
+  return { status, checks, note };
 }
 
 function assessTiming(p: Product, ctx: FinancialContext): Timing {
   switch (p.category) {
     case "financing": {
-      if (ctx.goal?.type === "major_expense") {
-        return ctx.goal.timelineMonths <= 6
+      if (ctx.goal?.type === "major_expense" && ctx.goal.amount > 0) {
+        return ctx.goal.timelineMonths <= 12
           ? {
               status: "appropriate",
-              reason: `Your expense is due in ${ctx.goal.timelineMonths} months, so now is the right time to compare financing before the deadline.`,
+              reason: `You need the money within ${ctx.goal.timelineMonths} months — early enough to plan properly, instead of scrambling at the deadline.`,
             }
-          : {
-              status: "early",
-              reason: "Your expense is more than six months away — saving towards it may be enough.",
-            };
+          : { status: "early", reason: "Your expense is more than a year away — saving towards it may be enough." };
       }
-      return { status: "neutral", reason: "There's no planned expense that makes financing time-sensitive." };
+      return { status: "neutral", reason: "There's no planned expense that makes financing relevant now." };
     }
     case "savings": {
+      if (ctx.goal?.type === "save_more" && hasSignal(ctx, "regular_surplus"))
+        return {
+          status: "appropriate",
+          reason: "Your recent financial pattern suggests that setting aside part of your monthly surplus now could support the goal you stated.",
+        };
       if (hasSignal(ctx, "regular_surplus"))
-        return {
-          status: "appropriate",
-          reason:
-            "Your current savings pattern indicates that you have started building surplus funds, making this a relevant time to consider a dedicated savings option.",
-        };
+        return { status: "appropriate", reason: "You've started building a surplus — a good moment to give it somewhere to go." };
       if (hasSignal(ctx, "no_emergency_buffer"))
-        return { status: "appropriate", reason: "Building a buffer now protects you before something unexpected happens." };
-      return { status: "early", reason: "A consistent surplus would make this more useful." };
+        return { status: "appropriate", reason: "Starting a small buffer now protects you before something unexpected happens." };
+      return { status: "early", reason: "A steadier surplus would make this more useful." };
     }
-    case "investments": {
-      const inc = hasSignal(ctx, "income_increase");
-      if (inc)
+    case "accounts":
+      if (hasSignal(ctx, "student_activity"))
         return {
           status: "appropriate",
-          reason: "Your income rose recently and your extra money is accumulating — a good moment to decide where it should go.",
+          reason: "You're in school now and use your account every day for campus life — the account you bank with should fit this stage.",
         };
-      if (hasSignal(ctx, "large_idle_balance"))
-        return { status: "appropriate", reason: "Money has been sitting idle in your everyday account for several months." };
-      return { status: "early", reason: "Building a steady surplus first would make this more suitable." };
-    }
-    case "business":
-      if (hasSignal(ctx, "business_growth"))
-        return {
-          status: "appropriate",
-          reason: `Your business inflows have grown about ${Math.round(ctx.activity?.businessGrowthPct ?? 0)}% recently — the point where mixing business and personal money starts to cost you.`,
-        };
-      return { status: "early", reason: "Your business activity hasn't changed enough to make this urgent." };
+      return { status: "early", reason: "Nothing in your activity suggests this account fits your stage right now." };
     default:
-      return { status: "neutral", reason: "There's no time-sensitive trigger for this product." };
+      return { status: "neutral", reason: "There's no time-sensitive reason to consider this now." };
   }
 }
 
@@ -340,12 +347,16 @@ function goalFitFor(p: Product, ctx: FinancialContext): number {
   let fit = 15;
   if (p.financial_needs.some((n) => map.secondary.includes(n))) fit = 60;
   if (p.financial_needs.some((n) => map.primary.includes(n))) fit = 100;
-  // Major expense: prefer saving when affordable, financing when not.
   if (goal.type === "major_expense") {
     const plan = goalPlan(goal, ctx.surplus?.average ?? null);
-    if (p.financial_needs.includes("expense_financing")) fit = plan.affordableFromSurplus ? 40 : 100;
-    else if (p.financial_needs.includes("goal_saving")) fit = plan.affordableFromSurplus ? 100 : 35;
+    const financingNeed: FinancialNeed = isAssetGoal(goal) ? "asset_financing" : "expense_financing";
+    if (p.financial_needs.includes("expense_financing") || p.financial_needs.includes("asset_financing")) {
+      fit = !p.financial_needs.includes(financingNeed) ? 30 : plan.affordableFromSurplus ? 40 : 100;
+    } else if (p.financial_needs.includes("goal_saving")) {
+      fit = plan.affordableFromSurplus ? 100 : 35;
+    }
   }
+  if (goal.type === "everyday" && p.financial_needs.includes("student_banking") && ctx.segment !== "student") fit = 30;
   // Savings goal feasibility: can the contribution be met from surplus?
   if (goal.type === "save_more" && p.financial_needs.includes("goal_saving") && goal.amount > 0) {
     const plan = goalPlan(goal, ctx.surplus?.average ?? null);
@@ -353,14 +364,15 @@ function goalFitFor(p: Product, ctx: FinancialContext): number {
       fit = Math.round(fit * (0.5 + 0.5 / plan.shareOfSurplus));
     }
   }
-  // Holding-period fit: e.g. a 24-month goal suits a longer-term product.
-  const h = p.horizon_months;
-  if (h && goal.timelineMonths && fit >= 60) {
-    if ((h.min && goal.timelineMonths < h.min) || (h.max && goal.timelineMonths > h.max)) {
-      fit = Math.round(fit * 0.7);
-    }
-  }
   return fit;
+}
+
+function wantsNewSavingsGoal(ctx: FinancialContext) {
+  const g = ctx.goal;
+  if (!g || g.amount <= 0) return false;
+  if (g.type === "save_more") return true;
+  if (g.type === "major_expense") return goalPlan(g, ctx.surplus?.average ?? null).affordableFromSurplus === true;
+  return false;
 }
 
 function evaluateProduct(
@@ -386,23 +398,16 @@ function evaluateProduct(
     ? (present.reduce((a, s) => a + s.strength, 0) / p.recommended_when.length) * 100
     : 0;
 
-  const eligibilityFit =
-    eligibility.status === "eligible" ? 100 : eligibility.status === "needs_confirmation" ? 60 : 0;
+  const eligibilityFit = eligibility.status === "eligible" ? 100 : eligibility.status === "to_confirm" ? 60 : 0;
 
-  const productHistory = history.filter((h) => h.productId === p.product_id);
+  const productHistory = history.filter((h) => h.product_id === p.product_id);
   const recentDismissal = productHistory.find(
-    (h) => h.feedback === "not_relevant" && h.feedbackAt && daysAgo(h.feedbackAt, now) < FATIGUE_WINDOW_DAYS,
+    (h) => h.feedback === "not_relevant" && h.feedback_at && daysAgo(h.feedback_at, now) < FATIGUE_WINDOW_DAYS,
   );
-  if (recentDismissal) {
-    timing = { status: "not_now", reason: "You recently told us this wasn't relevant." };
-  }
+  if (recentDismissal) timing = { status: "not_now", reason: "You recently told us this wasn't relevant." };
 
   const categoryDismissals = history.filter(
-    (h) =>
-      h.category === p.category &&
-      isDismissal(h.feedback) &&
-      h.feedbackAt &&
-      daysAgo(h.feedbackAt, now) < FATIGUE_WINDOW_DAYS,
+    (h) => h.category === p.category && isDismissal(h.feedback) && h.feedback_at && daysAgo(h.feedback_at, now) < FATIGUE_WINDOW_DAYS,
   ).length;
   const preferenceFit = categoryDismissals > 0 ? 50 : 100;
 
@@ -410,7 +415,7 @@ function evaluateProduct(
   const irrelevancePenalty =
     conflicts.filter((s) => s !== "needs_immediate_liquidity").length * 25 + (needFit === 0 ? 40 : 0);
   const recentExposures = productHistory.filter(
-    (h) => daysAgo(h.createdAt, now) < DECISION_WINDOW_DAYS && h.status === "recommended",
+    (h) => daysAgo(h.created_at, now) < DECISION_WINDOW_DAYS && h.status === "recommended",
   ).length;
   const overexposurePenalty = recentExposures >= 2 ? 10 : 0;
 
@@ -428,44 +433,36 @@ function evaluateProduct(
 
   // Hard rules: cannot be recommended regardless of score.
   let exclusion: Evaluation["exclusion"];
-  const held = p.equivalent_holding && ctx.holdings?.includes(p.equivalent_holding);
-  const snoozed = productHistory.find(
-    (h) => h.snoozedUntil && new Date(h.snoozedUntil).getTime() > now.getTime(),
-  );
+  const held = Boolean(p.equivalent_holding && ctx.holdings?.includes(p.equivalent_holding));
+  const heldButNewGoal = held && p.multiple_allowed && wantsNewSavingsGoal(ctx);
+  const snoozed = productHistory.find((h) => h.snoozed_until && new Date(h.snoozed_until).getTime() > now.getTime());
+  const failed = eligibility.checks.find((c) => c.status === "fail");
   if (p.status !== "active") {
     exclusion = { rule: "inactive", reason: "This product isn't currently available." };
   } else if (!prefs.categories[p.category]) {
-    exclusion = {
-      rule: "opted_out",
-      reason: `You asked MoneyMap not to recommend ${CATEGORY_LABEL[p.category]} products.`,
-    };
-  } else if (productHistory.some((h) => h.feedback === "dont_want")) {
+    exclusion = { rule: "opted_out", reason: `You asked MoneyMap not to suggest ${CATEGORY_LABEL[p.category]} products.` };
+  } else if (productHistory.some((h) => h.feedback === "not_wanted")) {
     exclusion = { rule: "customer_declined", reason: "You told us you don't want this product." };
   } else if (recentDismissal) {
-    exclusion = { rule: "customer_declined", reason: "You recently told us this wasn't relevant." };
+    exclusion = { rule: "customer_declined", reason: "You recently told us this wasn't relevant, so we won't show it again for now." };
   } else if (categoryDismissals >= CATEGORY_FATIGUE_LIMIT) {
     exclusion = {
       rule: "category_fatigue",
       reason: `You've dismissed several ${CATEGORY_LABEL[p.category]} suggestions recently, so we've paused them.`,
     };
-  } else if (held) {
-    exclusion = { rule: "already_held", reason: "You already have this product or an equivalent one." };
-  } else if (!p.target_customer.includes(ctx.segment)) {
+  } else if (held && !heldButNewGoal) {
     exclusion = {
-      rule: "segment",
-      reason: eligibility.checks.find((c) => c.label === "Customer type")?.detail ?? "Not designed for your customer type.",
+      rule: "already_held",
+      reason: p.multiple_allowed
+        ? `You already have ${p.name} working for you. Set a new savings goal if you want a separate one for it.`
+        : `You already have this product (${p.name}), so another one wouldn't add anything.`,
     };
-  } else if (eligibility.status === "ineligible") {
-    const failed = eligibility.checks.find((c) => c.status === "fail");
-    exclusion = {
-      rule: "ineligible",
-      reason: `Your current eligibility does not meet the product's requirements. ${failed?.detail ?? ""}`.trim(),
-    };
+  } else if (failed && failed.basis === "published") {
+    exclusion = { rule: "ineligible", reason: `Your current eligibility does not meet the product's published requirements. ${failed.detail}` };
+  } else if (failed) {
+    exclusion = { rule: "unsuitable", reason: failed.detail };
   } else if (conflicts.includes("needs_immediate_liquidity")) {
-    exclusion = {
-      rule: "conflict",
-      reason: "You'll need this money soon, and this product works best when money stays put.",
-    };
+    exclusion = { rule: "conflict", reason: "You'll need this money soon, and this product works best when money stays put." };
   } else if (snoozed) {
     exclusion = { rule: "snoozed", reason: "You asked us to remind you later." };
   }
@@ -478,16 +475,6 @@ function evaluateProduct(
         ? "potential"
         : "low";
 
-  const basis: string[] = [];
-  if (ctx.goal && goalFit >= 60) basis.push("Your stated goal");
-  for (const s of present) {
-    const label = SIGNAL_BASIS[s.signal];
-    if (label && !basis.includes(label)) basis.push(label);
-  }
-  if (ctx.goal && goalFit >= 60 && ctx.goal.timelineMonths) basis.push("Your preferred timeline");
-  if (eligibility.status === "eligible") basis.push("Current eligibility");
-  else if (eligibility.status === "needs_confirmation") basis.push("Eligibility (to be confirmed)");
-
   return {
     product: p,
     score: exclusion ? 0 : score,
@@ -497,169 +484,227 @@ function evaluateProduct(
     eligibility,
     timing,
     exclusion,
-    basis,
     usedSignals: present.map((s) => s.signal),
   };
 }
 
-function whyNot(e: Evaluation, top: Evaluation | null, goalMonths: number | null): string {
+function whyNot(e: Evaluation, top: Evaluation | null): string {
   if (e.exclusion) return e.exclusion.reason;
-  if (e.factors.needFit === 0) return "Your current situation doesn't show a need this product is designed for.";
-  if (top && e.factors.goalFit < top.factors.goalFit) {
-    const h = e.product.horizon_months;
-    const months = goalMonths ?? 0;
-    if (h?.max && months > h.max)
-      return `It suits money you'll need within ${h.max} months — your goal has a longer timeline.`;
-    if (h?.min && months && months < h.min)
-      return `It suits money you can leave for ${h.min}+ months — your goal has a shorter timeline.`;
-    return "It does not currently align as closely with your stated goal.";
-  }
-  if (e.factors.irrelevancePenalty > 0)
-    return "Parts of your current financial pattern suggest it may not suit you right now.";
+  if (e.factors.needFit === 0) return "Your current situation doesn't show the need this product is designed for.";
+  if (top && e.factors.goalFit < top.factors.goalFit) return "It does not currently align as closely with your stated goal.";
+  if (e.factors.irrelevancePenalty > 0) return "Parts of your current financial pattern suggest it may not suit you right now.";
   if (e.timing.status === "early" || e.timing.status === "not_now") return e.timing.reason;
-  if (e.factors.behaviourFit < 50) return "Your recent financial behaviour doesn't strongly indicate this need yet.";
+  if (e.factors.behaviourFit < 50) return "Your recent financial behaviour doesn't strongly point to this need yet.";
   return top
     ? `It's a reasonable option, but scored lower than ${top.product.name} for your situation.`
     : "It isn't a strong enough match for your situation right now.";
 }
 
+function contextLines(ctx: FinancialContext, used: Signal[]): string[] {
+  const lines: string[] = [];
+  for (const s of ctx.signals) if (used.includes(s.signal) && BEHAVIOUR_SIGNALS.includes(s.signal)) lines.push(s.evidence);
+  if (lines.length === 0 && ctx.income) lines.push(`Your average monthly income is about ${formatNaira(ctx.income.average)}.`);
+  if (lines.length === 0) lines.push("You haven't shared financial activity, so MoneyMap relied on your goal.");
+  return lines;
+}
+
 function explain(top: Evaluation, ctx: FinancialContext): Explanation {
   const p = top.product;
-  const ev = (s: Signal) => hasSignal(ctx, s)?.evidence;
   const goal = ctx.goal;
   const dataUsed = new Set<PermissionKey>();
   for (const s of ctx.signals) if (top.usedSignals.includes(s.signal)) dataUsed.add(s.source);
-  if (goal) dataUsed.add("financial_goals");
+  if (goal && top.factors.goalFit >= 60) dataUsed.add("financial_goals");
+  if (ctx.holdings) dataUsed.add("existing_products");
 
   const goalText = goal
     ? goal.amount > 0
       ? goal.label.includes(formatNaira(goal.amount))
         ? `${goal.label} in ${goal.timelineMonths} months.`
-        : `${goal.label} — ${formatNaira(goal.amount)} in ${goal.timelineMonths} months.`
+        : `${goal.label} — ${formatNaira(goal.amount)} within ${goal.timelineMonths} months.`
       : `${goal.label}.`
     : null;
 
-  const behaviour =
-    ev("consistent_income") ??
-    ev("income_increase") ??
-    ev("business_growth") ??
-    (ctx.income
-      ? `Your average monthly income is about ${formatNaira(ctx.income.average)}.`
-      : "You haven't shared income patterns, so we relied on other information.");
+  const context = contextLines(ctx, top.usedSignals);
+  const need = top.primaryNeed ? NEED_LABELS[top.primaryNeed].toLowerCase() : null;
+  const productFit = need
+    ? `${p.name} is built for ${p.purpose.toLowerCase()} — and ${need} is what your situation points to.`
+    : `${p.name} is built for ${p.purpose.toLowerCase()}.`;
 
-  const pattern =
-    ev("savings_in_everyday_account") && ev("regular_surplus")
-      ? `${ev("regular_surplus")} You regularly retain surplus funds after recurring expenses.`
-      : (ev("large_idle_balance") ??
-        ev("regular_surplus") ??
-        ev("high_transaction_volume") ??
-        ev("business_inflows") ??
-        ev("planned_major_expense") ??
-        "We didn't see a strong pattern beyond what you told us.");
+  // Why it fits — one plain sentence joining the goal and the strongest pattern.
+  const has = (s: Signal) => top.usedSignals.includes(s);
+  let whyItFits = productFit;
+  if (p.financial_needs.includes("goal_saving") && goal?.type === "save_more" && has("regular_surplus"))
+    whyItFits = `You have a defined savings goal and a recurring monthly surplus${
+      has("savings_in_everyday_account") ? " — but the money you keep sits in your everyday account" : ""
+    }. ${p.name} keeps goal money separate from spending money.`;
+  else if (p.financial_needs.includes("student_banking"))
+    whyItFits = "You're a student who banks almost entirely by card and app, living on a monthly allowance — and Aspire is Zenith's account built for students.";
+  else if (p.category === "financing" && goal)
+    whyItFits = `You're planning ${goal.label.toLowerCase()}, your income is steady, and your surplus alone won't cover it in time.`;
 
-  const productFit = top.primaryNeed
-    ? `${p.name} is designed for ${p.purpose.toLowerCase()} — and ${NEED_LABELS[top.primaryNeed].toLowerCase()} is what your situation points to.`
-    : `${p.name} is designed for ${p.purpose.toLowerCase()}.`;
+  const relationship = ctx.holdings
+    ? ctx.holdings.includes(p.equivalent_holding as never)
+      ? `You already hold ${p.name}; this would be a separate one for your new goal.`
+      : `You don't currently hold ${p.name}${hasSignal(ctx, "has_dedicated_savings") && p.category === "savings" ? "" : " or anything that does the same job"}.`
+    : "You haven't shared your existing products, so we couldn't check for overlap.";
+
+  const influences: Influence[] = [];
+  if (goal && top.factors.goalFit >= 60) influences.push({ key: "goal", label: "Your goal", detail: goalText ?? goal.label });
+  if (top.usedSignals.some((s) => BEHAVIOUR_SIGNALS.includes(s)))
+    influences.push({ key: "behaviour", label: "Permitted financial behaviour", detail: context[0] });
+  influences.push({ key: "relationship", label: "Your current banking relationship", detail: relationship });
+  influences.push({ key: "purpose", label: "Product purpose", detail: `${p.name}: ${p.purpose}.` });
 
   const eligibilityText =
     top.eligibility.status === "eligible"
-      ? "Based on the information you've permitted, you meet the current eligibility requirements. Final approval follows the bank's formal checks."
-      : "Some eligibility requirements still need to be confirmed before you can proceed.";
+      ? `Nothing in the published conditions or MoneyMap's checks rules you out. ${top.eligibility.note}`
+      : `Some conditions still need to be confirmed. ${top.eligibility.note}`;
 
   const nextSteps =
     p.category === "financing"
-      ? ["Review the product and terms", "Confirm eligibility", "Submit an application for credit assessment", "Get a decision from the bank"]
-      : p.application_route === "relationship_manager"
-        ? ["Review the product", "Confirm eligibility", "Speak with a relationship manager", "Start working toward your goal"]
-        : ["Review the product", "Confirm eligibility", "Apply / open / activate", "Start working toward your goal"];
+      ? ["Review the product", "Confirm your details with Zenith", "Submit a request for credit assessment", "Zenith decides — MoneyMap never approves credit"]
+      : ["Review the product", "Confirm your details", "Open it on the Zenith app or at a branch", "Start using it for your goal"];
 
   let estimate: Explanation["estimate"];
-  let summary = `${productFit} ${top.timing.reason}`;
+  let estimateNote: string | undefined;
   if (goal && goal.amount > 0 && p.financial_needs.includes("goal_saving")) {
     const plan = goalPlan(goal, ctx.surplus?.average ?? null);
     estimate = [
       { label: "Target", value: formatNaira(plan.target) },
       { label: "Timeline", value: `${plan.timelineMonths} months` },
-      { label: "Suggested monthly contribution", value: formatNaira(plan.monthlyContribution) },
+      { label: "Suggested monthly saving", value: formatNaira(plan.monthlyContribution) },
     ];
-    if (plan.shareOfSurplus !== null)
-      estimate.push({ label: "Share of your average surplus", value: `${Math.round(plan.shareOfSurplus * 100)}%` });
-    summary = `You told us you want to save ${formatNaira(goal.amount)} within ${goal.timelineMonths} months. ${
-      ctx.surplus ? "Your recent income and spending pattern suggests you may be able to set money aside consistently. " : ""
-    }This product is designed to help separate goal-focused funds from everyday spending.`;
-  } else if (p.category === "financing") {
+    if (plan.shareOfSurplus !== null) estimate.push({ label: "Share of your monthly surplus", value: `${Math.round(plan.shareOfSurplus * 100)}%` });
+    estimateNote = "Simple division of your target over your timeline. Interest is not included because rates are set by Zenith.";
+  } else if (p.category === "financing" && goal) {
     const gap = financingGap(ctx);
     if (gap) {
-      const est = loanEstimate(gap);
+      const spread = principalSpread(gap);
       estimate = [
-        { label: "Planned expense", value: formatNaira(goal!.amount) },
-        { label: "You could save before it's due", value: formatNaira(Math.max(0, goal!.amount - gap)) },
-        { label: "Estimated amount to finance", value: formatNaira(gap) },
-        { label: "Illustrative monthly repayment (12 months)", value: formatNaira(est.monthly) },
+        { label: "Planned expense", value: formatNaira(goal.amount) },
+        { label: "You could save before it's due", value: formatNaira(Math.max(0, goal.amount - gap)) },
+        { label: "Amount to finance", value: formatNaira(gap) },
+        { label: `Principal over ${EXAMPLE_TENOR_MONTHS} months`, value: `${formatNaira(spread.monthly)}/month` },
       ];
-      summary = `You're planning to spend ${formatNaira(goal!.amount)} in ${goal!.timelineMonths} months. At your current surplus you could set aside part of it, leaving a gap of about ${formatNaira(gap)}. A planned loan for the gap can be easier to manage than a last-minute shortfall — subject to the bank's credit assessment.`;
+      estimateNote = "Principal only, over an example 12-month period. Interest, charges, tenor and approval are set by Zenith's credit assessment.";
     }
-  } else if (ctx.surplus && (p.category === "investments" || p.category === "business")) {
-    summary = `${behaviour} ${pattern} ${productFit}`;
   }
 
   return {
+    whyItFits,
+    whyNow: top.timing.reason,
+    influences,
     goal: goalText,
-    behaviour,
-    pattern,
+    context,
     productFit,
     timing: top.timing.reason,
     eligibility: eligibilityText,
     nextSteps,
-    summary,
     dataUsed: [...dataUsed],
     estimate,
+    estimateNote,
   };
+}
+
+function buildTrace(
+  input: EngineInput,
+  ctx: FinancialContext,
+  needs: DetectedNeed[],
+  ranked: Evaluation[],
+  status: DecisionStatus,
+  top: Evaluation | null,
+): TraceStep[] {
+  const c = input.customer;
+  const permitted = Object.values(input.permissions).filter(Boolean).length;
+  const addressing = ranked.filter((e) => e.factors.needFit > 0);
+  const passed = addressing.filter((e) => !e.exclusion);
+  const ctxParts = [
+    ctx.income && `${formatNaira(ctx.income.average)} in`,
+    ctx.spending && `${formatNaira(ctx.spending.average)} out`,
+    ctx.surplus && `${formatNaira(ctx.surplus.average)} left over`,
+  ].filter(Boolean);
+  return [
+    { stage: "Customer", result: `${c.firstName}, ${c.age} · ${c.occupation}`, status: "done" },
+    { stage: "Permitted data", result: `${permitted} of 5 categories allowed`, status: permitted ? "done" : "empty" },
+    {
+      stage: "Financial context",
+      result: ctxParts.length ? `${ctxParts.join(" · ")} a month · ${ctx.signals.length} signals` : `${ctx.signals.length} signals`,
+      status: ctx.signals.length ? "done" : "empty",
+    },
+    { stage: "Goal", result: ctx.goal ? ctx.goal.label : "No goal shared", status: ctx.goal ? "done" : "empty" },
+    {
+      stage: "Need detection",
+      result: needs.length ? `${NEED_LABELS[needs[0].need]} (${needs[0].strength}/100)` : "No clear unmet need",
+      status: needs.length ? "done" : "stop",
+    },
+    {
+      stage: "Product fit",
+      result: `${ranked.length} products checked → ${addressing.length} ${addressing.length === 1 ? "addresses" : "address"} a detected need`,
+      status: addressing.length ? "done" : "stop",
+    },
+    {
+      stage: "Eligibility",
+      result: addressing.length
+        ? `${passed.length} of ${addressing.length} ${addressing.length === 1 ? "passes" : "pass"} published conditions and guardrails`
+        : "Nothing to check",
+      status: passed.length ? "done" : "stop",
+    },
+    {
+      stage: "Timing",
+      result: top
+        ? { appropriate: "Right time", neutral: "No time pressure", early: "Early", not_now: "Not now" }[top.timing.status]
+        : passed[0]
+          ? `Best remaining option scored ${passed[0].score} — below the bar`
+          : "Not reached",
+      status: top ? "done" : "stop",
+    },
+    {
+      stage: "Recommendation",
+      result: top
+        ? `${top.product.name} · ${top.score}% match`
+        : status === "no_match"
+          ? "None — no match strong enough"
+          : "Held back to avoid over-marketing",
+      status: top ? "done" : "stop",
+    },
+  ];
 }
 
 export function runEngine(input: EngineInput): EngineResult {
   const now = input.now ?? new Date();
   const context = buildFinancialContext(input.customer, input.permissions, input.goal);
   const needs = detectNeeds(context);
-  const evaluations = input.products.map((p) =>
-    evaluateProduct(p, context, needs, input.preferences, input.history, now),
-  );
+  const evaluations = input.products.map((p) => evaluateProduct(p, context, needs, input.preferences, input.history, now));
   const ranked = [...evaluations].sort(
     (a, b) => Number(Boolean(a.exclusion)) - Number(Boolean(b.exclusion)) || b.score - a.score,
   );
   const candidate = ranked.find((e) => !e.exclusion) ?? null;
 
-  const base = {
-    context,
-    needs,
-    generatedAt: now.toISOString(),
-    modelVersion: MODEL_VERSION,
-  };
-  const finish = (
-    status: DecisionStatus,
-    top: Evaluation | null,
-    message: string,
-  ): EngineResult => {
-    for (const e of ranked) if (e !== top) e.whyNot = whyNot(e, top, context.goal?.timelineMonths ?? null);
+  const finish = (status: DecisionStatus, top: Evaluation | null, message: string): EngineResult => {
+    for (const e of ranked) if (e !== top) e.whyNot = whyNot(e, top);
     return {
-      ...base,
       status,
       top,
       explanation: top ? explain(top, context) : null,
       ranked,
+      context,
+      needs,
+      trace: buildTrace(input, context, needs, ranked, status, top),
       message,
+      generatedAt: now.toISOString(),
+      modelVersion: MODEL_VERSION,
     };
   };
 
   // Over-marketing control: global fatigue.
   const recentDismissals = input.history.filter(
-    (h) => isDismissal(h.feedback) && h.feedbackAt && daysAgo(h.feedbackAt, now) < FATIGUE_WINDOW_DAYS,
+    (h) => isDismissal(h.feedback) && h.feedback_at && daysAgo(h.feedback_at, now) < FATIGUE_WINDOW_DAYS,
   );
   if (!input.requestedMore && recentDismissals.length >= FATIGUE_LIMIT) {
     return finish(
       "paused",
       null,
-      "You've dismissed several recommendations recently, so MoneyMap has paused suggestions. We'll only show something if you ask.",
+      "You've turned down several suggestions recently, so MoneyMap has paused recommendations. We'll only show something if you ask.",
     );
   }
 
@@ -668,23 +713,20 @@ export function runEngine(input: EngineInput): EngineResult {
       "no_match",
       null,
       context.coverage < 0.4
-        ? "We couldn't identify a strong match with the information you've shared. Sharing more context may help — but it's always your choice."
-        : "Your current financial activity does not indicate a strong need for any of the products available to you right now.",
+        ? "With the information you've shared, we couldn't find anything that would meaningfully help. Sharing more may help — but that's always your choice."
+        : "Your current financial activity doesn't show a need that any available product would meaningfully improve.",
     );
   }
 
   // Decision window: max one proactive recommendation per window.
   const lastDismissedInWindow = input.history.find(
-    (h) =>
-      isDismissal(h.feedback) &&
-      h.productId !== candidate.product.product_id &&
-      daysAgo(h.createdAt, now) < DECISION_WINDOW_DAYS,
+    (h) => isDismissal(h.feedback) && h.product_id !== candidate.product.product_id && daysAgo(h.created_at, now) < DECISION_WINDOW_DAYS,
   );
   if (!input.requestedMore && lastDismissedInWindow) {
     return finish(
       "window_cap",
       null,
-      `You've already seen a recommendation this week. To avoid over-marketing, MoneyMap shows at most one proactive recommendation every ${DECISION_WINDOW_DAYS} days unless you ask for more.`,
+      `You've already seen a recommendation this week. To avoid over-marketing, MoneyMap shows at most one every ${DECISION_WINDOW_DAYS} days unless you ask for more.`,
     );
   }
 
@@ -692,32 +734,49 @@ export function runEngine(input: EngineInput): EngineResult {
     return finish(
       "no_match",
       null,
-      "We found a possible option, but it isn't a strong enough match to show under your “only when highly relevant” setting.",
+      "We found a possible option, but it isn't a strong enough match to show under your “only highly relevant” setting.",
     );
   }
 
   return finish("recommended", candidate, "");
 }
 
-/** Shape the result as the spec §37 REST response. */
-export function toApiResponse(result: EngineResult, recommendationId: string) {
+/** Build the stored recommendation (Phase 2 §14) from an engine result. */
+export function toRecord(result: EngineResult, customerId: string): Omit<RecommendationRecord, "id" | "created_at" | "status"> | null {
+  const top = result.top;
+  if (!top || !result.explanation) return null;
+  return {
+    customer_id: customerId,
+    product_id: top.product.product_id,
+    product_name: top.product.name,
+    category: top.product.category,
+    need: top.primaryNeed,
+    match_score: top.score,
+    reasons: result.explanation.influences.map((i) => i.label),
+    timing_reason: top.timing.reason,
+    eligibility_status: top.eligibility.status,
+    model_version: result.modelVersion,
+  };
+}
+
+/** Shape the result as the REST response for POST /api/v1/recommendations. */
+export function toApiResponse(result: EngineResult, recommendationId: string, customerId: string) {
   return {
     recommendation_id: recommendationId,
-    status: result.status === "recommended" ? "recommended" : result.status,
+    customer_id: customerId,
+    status: result.status,
     model_version: result.modelVersion,
-    product: result.top
-      ? { id: result.top.product.product_id, name: result.top.product.name }
-      : null,
-    score: result.top?.score ?? null,
+    product: result.top ? { id: result.top.product.product_id, name: result.top.product.name } : null,
+    need: result.top?.primaryNeed ?? null,
+    match_score: result.top?.score ?? null,
     factors: result.top?.factors ?? null,
-    reasons: result.top?.basis ?? [],
-    timing: result.top
-      ? { status: result.top.timing.status, reason: result.top.timing.reason }
-      : null,
-    actions: result.top ? ["view_product", "apply", "dismiss"] : ["view_map", "explore_products"],
+    reasons: result.explanation?.influences.map((i) => i.label) ?? [],
+    timing: result.top ? { status: result.top.timing.status, reason: result.top.timing.reason } : null,
+    eligibility_status: result.top?.eligibility.status ?? null,
+    actions: result.top ? ["view_product", "apply", "feedback"] : ["view_map", "explore_products"],
     message: result.message || undefined,
   };
 }
 
-export { buildFinancialContext, detectNeeds, goalPlan, loanEstimate, NEED_LABELS, clamp };
+export { buildFinancialContext, detectNeeds, goalPlan, NEED_LABELS, clamp };
 export type { FinancialContext, DetectedNeed };

@@ -28,7 +28,7 @@ export function TopNavigation() {
         <Link to="/app" aria-label="MoneyMap home"><Logo /></Link>
         <div className="flex items-center gap-2">
           <Link to="/admin" className="hidden min-h-11 items-center gap-1.5 rounded-[10px] px-3 text-small font-medium text-navy-500 hover:bg-cloud hover:text-navy sm:inline-flex">
-            <ShieldCheck size={18} aria-hidden /> Bank admin
+            <ShieldCheck size={18} aria-hidden /> Bank view
           </Link>
           <Link to="/app/settings" className="flex min-h-11 items-center gap-2 rounded-full border border-mist py-1 pl-1 pr-3 hover:bg-cloud" aria-label={`Profile: ${customer.name}`}>
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-navy text-small font-semibold text-white" aria-hidden>

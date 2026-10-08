@@ -2,15 +2,16 @@
   "name": "moneymap",
   "private": true,
   "version": "1.0.0",
-  "description": "MoneyMap — intelligent financial product matching & decision platform (Zenith Bank Zecathon 6.0, Challenge #9 prototype)",
+  "description": "MoneyMap \u2014 intelligent financial product matching & decision platform (Zenith Bank Zecathon 6.0, Challenge #9 prototype)",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:embed": "tsc -b && VITE_ROUTER=memory vite build --outDir dist-embed",
+    "build:embed": "tsc -b && VITE_ROUTER=memory vite build --outDir dist-embed && node scripts/bundle-single.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b",
-    "test": "vitest run"
+    "test": "vitest run",
+    "qa": "node scripts/qa.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.52.0",
@@ -24,6 +25,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "playwright": "^1.56.1",
     "tailwindcss": "^4.3.3",
     "typescript": "~5.9",
     "vite": "^8.3.2",

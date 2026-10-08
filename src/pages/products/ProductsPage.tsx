@@ -21,7 +21,7 @@ export function ProductsPage() {
         {categories.map((c) => (
           <section key={c} aria-labelledby={`cat-${c}`}>
             <h2 id={`cat-${c}`} className="mb-3 !text-[20px]">{CATEGORY_META[c].label}</h2>
-            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {active
                 .filter((p) => p.category === c)
                 .map((p) => (

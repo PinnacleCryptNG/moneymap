@@ -11,13 +11,13 @@ import { EmptyState } from "../../components/shared/States";
 import { useToast } from "../../components/shared/Toast";
 import { goalPlan } from "../../engine/plan";
 import { useEngineResult } from "../../services/recommendation";
-import type { FinancialGoal, GoalType } from "../../types";
+import type { ExpenseKind, FinancialGoal, GoalType } from "../../types";
 import { formatNaira } from "../../utils/format";
-import { GOAL_META, GOAL_ORDER } from "../../utils/labels";
+import { EXPENSE_KINDS, GOAL_META, GOAL_ORDER, goalInputError } from "../../utils/labels";
 
-interface Draft { id?: string; type: GoalType; label: string; amount: string; months: string; saved: string }
+interface Draft { id?: string; type: GoalType; label: string; amount: string; months: string; saved: string; expenseKind: ExpenseKind }
 
-const empty: Draft = { type: "save_more", label: "", amount: "", months: "12", saved: "0" };
+const empty: Draft = { type: "save_more", label: "", amount: "", months: "12", saved: "0", expenseKind: "rent" };
 
 export function GoalsPage() {
   const { state, dispatch, activeGoal } = useStore();
@@ -28,16 +28,26 @@ export function GoalsPage() {
   const [contrib, setContrib] = useState<FinancialGoal | null>(null);
   const [contribAmount, setContribAmount] = useState("");
 
+  const draftError = draft ? goalInputError(Number(draft.amount), Number(draft.months), GOAL_META[draft.type].needsAmount) : null;
+
   const save = () => {
-    if (!draft) return;
+    if (!draft || draftError) return;
     const meta = GOAL_META[draft.type];
     const amount = meta.needsAmount ? Number(draft.amount) || 0 : 0;
+    const kind = draft.type === "major_expense" ? draft.expenseKind : undefined;
     dispatch({
       type: "upsert_goal",
       goal: {
         id: draft.id,
         type: draft.type,
-        label: draft.label.trim() || (draft.type === "save_more" && amount ? `Save ${formatNaira(amount)}` : meta.label),
+        label:
+          draft.label.trim() ||
+          (draft.type === "save_more" && amount
+            ? `Save ${formatNaira(amount)}`
+            : kind
+              ? EXPENSE_KINDS.find((k) => k.value === kind)!.goalLabel
+              : meta.label),
+        expenseKind: kind,
         amount,
         timelineMonths: Math.max(1, Number(draft.months) || 12),
         saved: Number(draft.saved) || 0,
@@ -72,7 +82,7 @@ export function GoalsPage() {
           actions={<Button onClick={() => setDraft(empty)}>Set a goal</Button>}
         />
       ) : (
-        <ul className="grid gap-6 lg:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {state.goals.map((g) => {
             const active = g.id === activeGoal?.id;
             return (
@@ -86,7 +96,7 @@ export function GoalsPage() {
                       <Button size="sm" variant="tertiary" onClick={() => { setContrib(g); setContribAmount(""); }}>Log progress</Button>
                     )}
                     <span className="ml-auto flex gap-1">
-                      <Button size="sm" variant="tertiary" aria-label={`Edit ${g.label}`} onClick={() => setDraft({ id: g.id, type: g.type, label: g.label, amount: String(g.amount || ""), months: String(g.timelineMonths), saved: String(g.saved) })}>
+                      <Button size="sm" variant="tertiary" aria-label={`Edit ${g.label}`} onClick={() => setDraft({ id: g.id, type: g.type, label: g.label, amount: String(g.amount || ""), months: String(g.timelineMonths), saved: String(g.saved), expenseKind: g.expenseKind ?? "rent" })}>
                         <Pencil size={18} aria-hidden />
                       </Button>
                       <Button size="sm" variant="danger" aria-label={`Delete ${g.label}`} onClick={() => { dispatch({ type: "delete_goal", id: g.id }); toast("Goal deleted."); }}>
@@ -108,14 +118,20 @@ export function GoalsPage() {
               {GOAL_ORDER.map((t) => <option key={t} value={t}>{GOAL_META[t].label}</option>)}
             </Select>
             <Input label="Name (optional)" placeholder={GOAL_META[draft.type].label} value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} />
+            {draft.type === "major_expense" && (
+              <Select label="What's the expense for?" value={draft.expenseKind} onChange={(e) => setDraft({ ...draft, expenseKind: e.target.value as ExpenseKind })}>
+                {EXPENSE_KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+              </Select>
+            )}
             {GOAL_META[draft.type].needsAmount && (
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Input label="Target amount" prefix="₦" inputMode="numeric" required value={draft.amount} onChange={(e) => setDraft({ ...draft, amount: e.target.value.replace(/[^\d]/g, "") })} />
                 <Input label="Timeline (months)" inputMode="numeric" value={draft.months} onChange={(e) => setDraft({ ...draft, months: e.target.value.replace(/[^\d]/g, "") })} />
                 <Input label="Already saved" prefix="₦" inputMode="numeric" value={draft.saved} onChange={(e) => setDraft({ ...draft, saved: e.target.value.replace(/[^\d]/g, "") })} />
               </div>
             )}
-            {plan && (
+            {draftError && (draft.amount || draft.months !== "12") && <p role="alert" className="text-small font-medium text-red">{draftError}</p>}
+            {plan && !draftError && (
               <div className="rounded-[12px] bg-cloud p-4 text-small">
                 <p className="mb-1 text-caption uppercase tracking-wide text-navy-500">Estimate</p>
                 <p>Suggested monthly contribution: <strong>{formatNaira(plan.monthlyContribution)}</strong></p>
@@ -126,7 +142,7 @@ export function GoalsPage() {
             )}
             <div className="flex justify-end gap-3">
               <Button variant="secondary" onClick={() => setDraft(null)}>Cancel</Button>
-              <Button type="submit" disabled={GOAL_META[draft.type].needsAmount && !(Number(draft.amount) > 0)}>Save goal</Button>
+              <Button type="submit" disabled={Boolean(draftError)}>Save goal</Button>
             </div>
           </form>
         )}
@@ -138,7 +154,7 @@ export function GoalsPage() {
             <Input label={`Amount added to "${contrib.label}"`} prefix="₦" inputMode="numeric" autoFocus value={contribAmount} onChange={(e) => setContribAmount(e.target.value.replace(/[^\d]/g, ""))} />
             <div className="flex justify-end gap-3">
               <Button variant="secondary" onClick={() => setContrib(null)}>Cancel</Button>
-              <Button type="submit" disabled={!(Number(contribAmount) > 0)}>Add</Button>
+              <Button type="submit" disabled={!(Number(contribAmount) > 0) || Number(contribAmount) > 1_000_000_000}>Add</Button>
             </div>
           </form>
         )}

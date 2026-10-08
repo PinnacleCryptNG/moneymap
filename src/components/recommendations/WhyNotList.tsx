@@ -21,10 +21,11 @@ export function WhyNotList({ items, limit }: { items: Evaluation[]; limit?: numb
 
 /** Alternatives worth listing: skip those with no relationship to the customer's needs. */
 export function consideredAlternatives(ranked: Evaluation[], topId?: string) {
+  const shown = new Set(["ineligible", "unsuitable", "already_held", "conflict", "customer_declined", "snoozed"]);
   return ranked.filter(
     (e) =>
       e.product.product_id !== topId &&
       e.product.status === "active" &&
-      (e.factors.needFit > 0 || e.exclusion?.rule === "ineligible" || e.exclusion?.rule === "already_held" || e.exclusion?.rule === "conflict"),
+      (e.factors.needFit > 0 || (e.exclusion && shown.has(e.exclusion.rule))),
   );
 }

@@ -1,7 +1,8 @@
 import { Component, useEffect, type ReactNode } from "react";
 import { HashRouter, MemoryRouter, useLocation } from "react-router-dom";
+import { DemoModeButton } from "../components/navigation/DemoMode";
 import { ToastProvider } from "../components/shared/Toast";
-import { StoreProvider } from "./providers/store";
+import { STORAGE_KEY, StoreProvider } from "./providers/store";
 import { AppRoutes } from "./routes/AppRoutes";
 
 /**
@@ -39,7 +40,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
           className="min-h-12 rounded-[10px] bg-blue px-5 font-semibold text-white"
           onClick={() => {
             try {
-              localStorage.removeItem("moneymap:v3");
+              localStorage.removeItem(STORAGE_KEY);
             } catch {
               /* ignore */
             }
@@ -62,6 +63,7 @@ export function App() {
           <Router>
             <ScrollToTop />
             <AppRoutes />
+            <DemoModeButton />
           </Router>
         </ToastProvider>
       </StoreProvider>

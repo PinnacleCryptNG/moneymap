@@ -4,6 +4,7 @@ import { Badge } from "../../components/shared/Badge";
 import { ButtonLink } from "../../components/shared/Button";
 import { PageHeader } from "../../components/shared/PageHeader";
 import { EmptyState } from "../../components/shared/States";
+import { NEED_LABELS } from "../../engine";
 import { PERMISSION_COPY } from "../../services/consent";
 import type { RecommendationStatus } from "../../types";
 import { formatDateTime } from "../../utils/format";
@@ -11,7 +12,6 @@ import { FEEDBACK_LABELS } from "../../utils/labels";
 
 const STATUS: Record<RecommendationStatus, { label: string; tone: "neutral" | "blue" | "green" | "amber" | "red" }> = {
   recommended: { label: "Shown", tone: "blue" },
-  viewed: { label: "Viewed", tone: "blue" },
   explored: { label: "Explored", tone: "blue" },
   applied: { label: "Applied", tone: "green" },
   dismissed: { label: "Dismissed", tone: "neutral" },
@@ -33,8 +33,9 @@ export function ActivityPage() {
             {state.recommendations.map((r) => (
               <li key={r.id} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="font-semibold">{r.productName}</p>
-                  <p className="text-small text-navy-500">{formatDateTime(r.createdAt)} · {r.score}% match</p>
+                  <p className="font-semibold">{r.product_name}</p>
+                  <p className="text-small text-navy-500">{formatDateTime(r.created_at)} · {r.match_score}% match{r.need ? ` · ${NEED_LABELS[r.need]}` : ""}</p>
+                  <p className="text-caption !font-normal text-navy-500">Based on: {r.reasons.join(", ")} · Eligibility: {r.eligibility_status.replace("_", " ")}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>

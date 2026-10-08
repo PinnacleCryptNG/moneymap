@@ -5,7 +5,6 @@ import { ActivityPage } from "../../pages/activity/ActivityPage";
 import { AdminAuditPage } from "../../pages/admin/AdminAuditPage";
 import { AdminEnginePage } from "../../pages/admin/AdminEnginePage";
 import { AdminOverviewPage } from "../../pages/admin/AdminOverviewPage";
-import { AdminProductEditorPage } from "../../pages/admin/AdminProductEditorPage";
 import { AdminProductsPage } from "../../pages/admin/AdminProductsPage";
 import { DashboardPage } from "../../pages/dashboard/DashboardPage";
 import { GoalsPage } from "../../pages/goals/GoalsPage";
@@ -37,8 +36,6 @@ export function AppRoutes() {
       <Route path="/admin" element={<AdminShell />}>
         <Route index element={<AdminOverviewPage />} />
         <Route path="products" element={<AdminProductsPage />} />
-        <Route path="products/new" element={<AdminProductEditorPage key="new" />} />
-        <Route path="products/:id" element={<AdminProductEditorPage />} />
         <Route path="engine" element={<AdminEnginePage />} />
         <Route path="audit" element={<AdminAuditPage />} />
       </Route>

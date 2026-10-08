@@ -5,8 +5,8 @@ import { FEEDBACK_LABELS } from "../../utils/labels";
 const ICONS = {
   useful: ThumbsUp,
   not_relevant: ThumbsDown,
-  dont_understand: HelpCircle,
-  dont_want: XCircle,
+  not_understood: HelpCircle,
+  not_wanted: XCircle,
   remind_later: BellRing,
 } as const;
 

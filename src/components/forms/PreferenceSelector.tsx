@@ -13,7 +13,7 @@ export function PreferenceSelector({ value, onChange }: { value: Preferences; on
     <div className="flex flex-col gap-8">
       <fieldset>
         <legend className="mb-3 font-semibold">What would you like MoneyMap to help you with?</legend>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {(Object.keys(CATEGORY_META) as ProductCategory[]).map((c) => {
             const on = value.categories[c];
             const Icon = CATEGORY_META[c].icon;

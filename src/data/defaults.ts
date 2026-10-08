@@ -1,6 +1,6 @@
 import type { Preferences } from "../types";
 
 export const DEFAULT_PREFERENCES: Preferences = {
-  categories: { savings: true, investments: true, financing: true, business: true, cards: true, other: true },
+  categories: { savings: true, accounts: true, financing: true, cards: true },
   frequency: "highly_relevant",
 };

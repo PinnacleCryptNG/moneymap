@@ -9,6 +9,9 @@ export type GoalType =
   | "protect"
   | "not_sure";
 
+/** What a major expense is for. An asset (car, equipment) points to asset finance. */
+export type ExpenseKind = "rent" | "school_fees" | "wedding" | "vehicle" | "equipment" | "other";
+
 export type PermissionKey =
   | "account_activity"
   | "income_patterns"
@@ -18,22 +21,18 @@ export type PermissionKey =
 
 export type Permissions = Record<PermissionKey, boolean>;
 
-export type ProductCategory =
-  | "savings"
-  | "investments"
-  | "financing"
-  | "business"
-  | "cards"
-  | "other";
+export type ProductCategory = "savings" | "accounts" | "financing" | "cards";
 
 export type FinancialNeed =
   | "goal_saving"
   | "surplus_management"
-  | "emergency_fund"
-  | "wealth_growth"
+  | "basic_savings"
+  | "student_banking"
   | "expense_financing"
+  | "asset_financing"
+  | "flexible_payments"
+  | "wealth_growth"
   | "business_banking"
-  | "everyday_banking"
   | "financial_protection";
 
 /** Behavioural / contextual signals the engine can detect. */
@@ -41,31 +40,44 @@ export type Signal =
   | "consistent_income"
   | "irregular_income"
   | "income_increase"
+  | "salary_account"
+  | "allowance_income"
   | "regular_surplus"
   | "low_surplus"
   | "stated_savings_goal"
   | "savings_in_everyday_account"
+  | "has_dedicated_savings"
   | "repeated_saving_behaviour"
   | "planned_major_expense"
-  | "business_inflows"
-  | "business_growth"
-  | "high_transaction_volume"
+  | "planned_asset_purchase"
+  | "student_activity"
+  | "digital_first"
   | "high_card_spend"
   | "no_emergency_buffer"
   | "needs_immediate_liquidity"
   | "large_idle_balance";
 
-export type CustomerSegment = "student" | "retail" | "business";
+export type CustomerSegment = "student" | "retail";
 
 export type ExistingProductId =
   | "current_account"
   | "savings_account"
   | "debit_card"
   | "credit_card"
+  | "save4me"
+  | "aspire"
+  | "eazysave"
   | "personal_loan"
-  | "business_account"
-  | "fixed_deposit"
-  | "investment_fund";
+  | "asset_finance";
+
+export interface Transaction {
+  /** Days before "today" in the demo. */
+  daysAgo: number;
+  description: string;
+  amount: number;
+  direction: "in" | "out";
+  category: "salary" | "allowance" | "transfer" | "bills" | "airtime" | "food" | "transport" | "shopping" | "school" | "savings" | "rent" | "other";
+}
 
 /** Synthetic customer record (anonymised prototype data). */
 export interface CustomerProfile {
@@ -74,23 +86,31 @@ export interface CustomerProfile {
   firstName: string;
   age: number;
   segment: CustomerSegment;
+  occupation: string;
+  city: string;
   persona: string;
   story: string;
+  expectedOutcome: string;
   /** Last 6 months, oldest first (₦). */
   monthlyIncome: number[];
+  /** Where income comes from. */
+  incomeSource: "salary" | "allowance" | "mixed";
+  /** Day of month the main credit usually lands. */
+  incomeDay: number;
   /** Last 6 months, oldest first (₦). */
   monthlySpending: number[];
   /** Fixed recurring commitments per month (₦), included in spending. */
   recurringCommitments: number;
   averageBalance: number;
-  /** Count of transactions per month, last 6 months. */
-  transactionsPerMonth: number[];
-  /** Number of months in the last 6 with a deliberate transfer-to-self / set-aside pattern. */
+  /** Number of months in the last 6 with money deliberately set aside. */
   savingMonths: number;
-  /** Business-related inflows per month (₦), last 6 months. */
-  businessInflows?: number[];
+  /** Share of outgoing payments made by card, POS, USSD or app (0–1). */
+  digitalShare: number;
   cardSpendShare: number;
+  /** School-related payments seen in account activity. */
+  schoolPayments: boolean;
   existingProducts: ExistingProductId[];
+  transactions: Transaction[];
   defaultGoal?: GoalDraft;
 }
 
@@ -100,6 +120,7 @@ export interface GoalDraft {
   amount: number;
   timelineMonths: number;
   saved?: number;
+  expenseKind?: ExpenseKind;
 }
 
 export interface FinancialGoal extends GoalDraft {
@@ -108,13 +129,32 @@ export interface FinancialGoal extends GoalDraft {
   createdAt: string;
 }
 
-export interface ProductEligibility {
-  minimum_income: number | null;
-  minimum_age: number;
-  account_required: boolean;
-  minimum_balance?: number | null;
-  /** Monthly repayment must not exceed this share of income (financing only). */
-  max_repayment_to_income?: number | null;
+/** A fact about a product with where it was published. */
+export interface PublishedFact {
+  text: string;
+  source: string;
+}
+
+/**
+ * Eligibility conditions the engine may check. Only conditions found in published
+ * sources are listed; everything else is "subject to Zenith Bank's current requirements".
+ */
+export interface PublishedEligibility {
+  minimum_age?: number;
+  maximum_age?: number;
+  /** Customer segments the product is published as being for. */
+  segments?: CustomerSegment[];
+  /** Product requires the customer's salary to be paid into a Zenith account. */
+  salary_account_required?: boolean;
+  source?: string;
+}
+
+/** MoneyMap's own prototype suitability guardrails (not Zenith eligibility). */
+export interface SuitabilityRules {
+  /** Principal-only monthly repayment must stay within this share of income. */
+  max_principal_to_income?: number;
+  /** Reported maximum balance — goals above it don't fit. */
+  max_balance?: number;
 }
 
 export interface Product {
@@ -124,29 +164,24 @@ export interface Product {
   purpose: string;
   description: string;
   target_customer: CustomerSegment[];
-  eligibility: ProductEligibility;
+  /** Publicly documented facts (with sources). */
+  published: PublishedFact[];
+  eligibility: PublishedEligibility;
+  suitability: SuitabilityRules;
   financial_needs: FinancialNeed[];
   recommended_when: Signal[];
   not_recommended_when: Signal[];
-  /** Holding period this product suits best, in months. */
-  horizon_months?: { min?: number; max?: number };
   /** Existing holding that makes this product redundant. */
   equivalent_holding?: ExistingProductId;
-  key_terms: string[];
-  fees: string;
-  required_documents: string[];
+  /** Customers can hold several (e.g. one SAVE4ME per goal). */
+  multiple_allowed?: boolean;
   application_route: "digital" | "branch" | "relationship_manager";
   status: "active" | "inactive";
   version: number;
   updated_at: string;
 }
 
-export type FeedbackType =
-  | "useful"
-  | "not_relevant"
-  | "dont_understand"
-  | "dont_want"
-  | "remind_later";
+export type FeedbackType = "useful" | "not_relevant" | "not_understood" | "not_wanted" | "remind_later";
 
 export type Frequency = "highly_relevant" | "occasionally" | "auto";
 
@@ -162,25 +197,28 @@ export interface ConsentRecord {
   at: string;
 }
 
-export type RecommendationStatus =
-  | "recommended"
-  | "viewed"
-  | "explored"
-  | "applied"
-  | "dismissed"
-  | "snoozed";
+export type RecommendationStatus = "recommended" | "explored" | "applied" | "dismissed" | "snoozed";
 
+export type EligibilityStatus = "eligible" | "to_confirm" | "ineligible";
+
+/** Stored recommendation (Phase 2 §14). */
 export interface RecommendationRecord {
   id: string;
-  productId: string;
-  productName: string;
+  customer_id: string;
+  product_id: string;
+  product_name: string;
   category: ProductCategory;
-  score: number;
-  createdAt: string;
+  need: FinancialNeed | null;
+  match_score: number;
+  reasons: string[];
+  timing_reason: string;
+  eligibility_status: EligibilityStatus;
+  model_version: string;
+  created_at: string;
   status: RecommendationStatus;
   feedback?: FeedbackType;
-  feedbackAt?: string;
-  snoozedUntil?: string;
+  feedback_at?: string;
+  snoozed_until?: string;
 }
 
 export interface Application {

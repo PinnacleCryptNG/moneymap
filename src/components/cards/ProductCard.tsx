@@ -34,7 +34,7 @@ export function FitBadge({ evaluation }: { evaluation: Evaluation }) {
       opted_out: "Hidden by you",
       customer_declined: "Declined",
       ineligible: "Not eligible",
-      segment: "Not for you",
+      unsuitable: "Doesn't fit",
       conflict: "Not right now",
       snoozed: "Snoozed",
       category_fatigue: "Paused",

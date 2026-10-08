@@ -5,14 +5,14 @@ import { useStore } from "../../app/providers/store";
 import { summaryTiles } from "../../components/cards/FinancialSnapshot";
 import { PermissionToggle } from "../../components/forms/PermissionToggle";
 import { Button } from "../../components/shared/Button";
-import { Input } from "../../components/shared/Field";
+import { Input, Select } from "../../components/shared/Field";
 import { Logo } from "../../components/shared/Logo";
 import { runEngine } from "../../engine";
 import { goalPlan } from "../../engine/plan";
 import { PERMISSION_COPY, PERMISSION_ORDER } from "../../services/consent";
-import type { GoalDraft, GoalType, Permissions } from "../../types";
+import type { ExpenseKind, GoalDraft, GoalType, Permissions } from "../../types";
 import { formatNaira } from "../../utils/format";
-import { GOAL_META, GOAL_ORDER } from "../../utils/labels";
+import { EXPENSE_KINDS, GOAL_META, GOAL_ORDER, goalInputError } from "../../utils/labels";
 
 const STEPS = ["Your goal", "Permissions", "Your map"];
 
@@ -25,6 +25,8 @@ export function OnboardingPage() {
   const [goalType, setGoalType] = useState<GoalType | null>(def?.type ?? null);
   const [amount, setAmount] = useState(def?.amount ? String(def.amount) : "");
   const [months, setMonths] = useState(String(def?.timelineMonths ?? 12));
+  const [expenseKind, setExpenseKind] = useState<ExpenseKind>(def?.expenseKind ?? "rent");
+  const [attempted, setAttempted] = useState(false);
   const [permissions, setPermissions] = useState<Permissions>({
     account_activity: false,
     income_patterns: false,
@@ -37,14 +39,17 @@ export function OnboardingPage() {
     if (!goalType) return null;
     const meta = GOAL_META[goalType];
     const amt = meta.needsAmount ? Number(amount) || 0 : 0;
+    const kind = goalType === "major_expense" ? expenseKind : undefined;
     const label =
-      goalType === def?.type
-        ? def.label
-        : goalType === "save_more" && amt
-          ? `Save ${formatNaira(amt)}`
-          : meta.label;
-    return { type: goalType, label, amount: amt, timelineMonths: Math.max(1, Number(months) || 12), saved: 0 };
-  }, [goalType, amount, months, def]);
+      goalType === "save_more" && amt
+        ? `Save ${formatNaira(amt)}`
+        : kind
+          ? EXPENSE_KINDS.find((k) => k.value === kind)!.goalLabel
+          : goalType === def?.type
+            ? def.label
+            : meta.label;
+    return { type: goalType, label, amount: amt, timelineMonths: Math.max(1, Number(months) || 12), saved: 0, expenseKind: kind };
+  }, [goalType, amount, months, def, expenseKind]);
 
   const preview = useMemo(
     () =>
@@ -64,7 +69,7 @@ export function OnboardingPage() {
     navigate(to);
   };
 
-  const goalValid = goalType !== null && (!GOAL_META[goalType].needsAmount || Number(amount) > 0);
+  const goalError = goalType ? goalInputError(Number(amount), Number(months), GOAL_META[goalType].needsAmount) : "Choose what you're working towards.";
   const allOn = PERMISSION_ORDER.every((k) => permissions[k]);
 
   return (
@@ -95,7 +100,7 @@ export function OnboardingPage() {
             <p className="mb-6 text-navy-500">Start with what you want to achieve. Products come after the need.</p>
             <fieldset>
               <legend className="sr-only">Choose your goal</legend>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {GOAL_ORDER.map((t) => {
                   const m = GOAL_META[t];
                   const Icon = m.icon;
@@ -119,9 +124,19 @@ export function OnboardingPage() {
 
             {goalType && GOAL_META[goalType].needsAmount && (
               <div className="card fade-up mt-4 grid gap-4 p-5 sm:grid-cols-2">
+                {goalType === "major_expense" && (
+                  <div className="sm:col-span-2">
+                    <Select label="What's the expense for?" value={expenseKind} onChange={(e) => setExpenseKind(e.target.value as ExpenseKind)}>
+                      {EXPENSE_KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+                    </Select>
+                  </div>
+                )}
                 <Input label="Target amount" prefix="₦" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))} hint={Number(amount) ? formatNaira(Number(amount)) : "e.g. 1,000,000"} />
                 <Input label="Timeline (months)" inputMode="numeric" value={months} onChange={(e) => setMonths(e.target.value.replace(/[^\d]/g, ""))} hint="When do you need it by?" />
-                {goal && goal.amount > 0 && (
+                {attempted && goalError && (
+                  <p role="alert" className="text-small font-medium text-red sm:col-span-2">{goalError}</p>
+                )}
+                {goal && goal.amount > 0 && !goalError && (
                   <p className="text-small text-navy-500 sm:col-span-2">
                     Estimate: about <strong className="text-navy">{formatNaira(goalPlan(goal, null).monthlyContribution)}</strong> a month for {goal.timelineMonths} months.
                   </p>
@@ -130,7 +145,16 @@ export function OnboardingPage() {
             )}
 
             <div className="mt-8 flex justify-end">
-              <Button disabled={!goalValid} onClick={() => setStep(1)} iconRight={<ArrowRight size={20} aria-hidden />}>Continue</Button>
+              <Button
+                disabled={!goalType}
+                onClick={() => {
+                  setAttempted(true);
+                  if (!goalError) setStep(1);
+                }}
+                iconRight={<ArrowRight size={20} aria-hidden />}
+              >
+                Continue
+              </Button>
             </div>
           </section>
         )}
@@ -161,10 +185,15 @@ export function OnboardingPage() {
                 />
               ))}
             </div>
-            <p className="mt-4 flex items-start gap-2 text-small text-navy-500">
-              <ShieldCheck size={18} className="mt-0.5 shrink-0 text-green-700" aria-hidden />
-              We never use data you haven't allowed. Withdrawing a permission stops it being used for personalisation straight away.
-            </p>
+            <div className="mt-5 rounded-[16px] border border-mist bg-white p-4">
+              <p className="mb-2 flex items-center gap-2 font-semibold"><ShieldCheck size={18} className="text-green-700" aria-hidden /> Our promise</p>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-small text-navy-700">
+                <li>We never use data you haven't allowed. Withdrawing a permission stops its use straight away.</li>
+                <li>We work from monthly patterns. We never see your PIN, passwords or full card details.</li>
+                <li>MoneyMap never moves your money, never decides for you, and never guarantees a financial outcome.</li>
+                <li>Every recommendation is explained, recorded and can be turned down.</li>
+              </ul>
+            </div>
             <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
               <Button variant="tertiary" onClick={() => setStep(0)} icon={<ArrowLeft size={20} aria-hidden />}>Back</Button>
               <div className="flex flex-wrap gap-3">
@@ -224,7 +253,7 @@ export function OnboardingPage() {
             ) : (
               <div className="card p-6 md:p-8">
                 <p className="eyebrow mb-2">Your next opportunity</p>
-                <h2 className="mb-2">Nothing needs your attention right now.</h2>
+                <h2 className="mb-2">Nothing needs your attention.</h2>
                 <p className="mb-6 text-navy-500">{preview.message}</p>
                 <Button onClick={() => finish("/app/map")}>Review my financial map</Button>
               </div>
@@ -244,13 +273,11 @@ export function OnboardingPage() {
 function nextOpportunityCopy(category: string, name: string): string {
   switch (category) {
     case "savings":
-      return "You may benefit from separating your goal savings from your everyday spending.";
-    case "investments":
-      return "Your financial situation has changed. It may be a good time to review how you're managing your surplus.";
+      return "You may benefit from keeping your goal money separate from your everyday spending.";
+    case "accounts":
+      return "Your banking setup may not fit the stage of life you're in right now.";
     case "financing":
       return "You may have a financing option that fits the expense you're planning.";
-    case "business":
-      return "Your business activity has grown. Your current banking setup may no longer be the best fit.";
     default:
       return `${name} may fit your current situation.`;
   }

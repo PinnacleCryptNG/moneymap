@@ -17,7 +17,7 @@ export function MapJourney({ now, next, goal, progress = 0, compact = false }: P
   const h = compact ? 180 : 260;
   const route = `M 60 ${h - 36} C 140 ${h - 36}, 150 ${h / 2 + 10}, 230 ${h / 2} S 330 40, 420 36`;
   return (
-    <figure className="relative mx-auto w-full max-w-3xl" aria-label={`Your route: you are here — ${now}; ${next ? `next step — ${next}; ` : ""}goal — ${goal}.`}>
+    <figure className="relative mx-auto w-full max-w-3xl" aria-label={`Your route: you are here — ${now}; ${next ? `next move — ${next}; ` : ""}goal — ${goal}.`}>
       <svg viewBox={`0 0 480 ${h}`} className="w-full" role="img" aria-hidden="true">
         <defs>
           <pattern id="mm-grid" width="24" height="24" patternUnits="userSpaceOnUse">
@@ -34,7 +34,7 @@ export function MapJourney({ now, next, goal, progress = 0, compact = false }: P
       </svg>
       <div className="pointer-events-none absolute inset-0 text-small">
         <Label style={{ left: "4%", bottom: compact ? "2%" : "4%" }} icon={<MapPin size={14} aria-hidden />} title="You are here" body={now} />
-        {next && <Label style={{ left: "38%", top: compact ? "8%" : "14%" }} icon={<Footprints size={14} aria-hidden />} title="Next step" body={next} />}
+        {next && <Label style={{ left: "38%", top: compact ? "8%" : "14%" }} icon={<Footprints size={14} aria-hidden />} title="Next move" body={next} />}
         <Label
           style={{ right: "2%", top: compact ? "30%" : "24%" }}
           align="right"

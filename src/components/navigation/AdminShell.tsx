@@ -14,10 +14,10 @@ export function AdminShell() {
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 bg-navy text-white">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 md:px-6">
-          <Link to="/admin" className="flex items-center gap-2.5" aria-label="MoneyMap bank admin">
+          <Link to="/admin" className="flex items-center gap-2.5" aria-label="MoneyMap bank view">
             <LogoMark inverted />
             <span className="font-bold">MoneyMap</span>
-            <span className="rounded-full bg-white/15 px-2 py-0.5 text-caption">Bank admin</span>
+            <span className="rounded-full bg-white/15 px-2 py-0.5 text-caption">Bank view</span>
           </Link>
           <Link to="/app" className="inline-flex min-h-11 items-center gap-1.5 rounded-[10px] px-3 text-small font-medium text-white/80 hover:bg-white/10 hover:text-white">
             <ArrowLeft size={18} aria-hidden /> Customer app

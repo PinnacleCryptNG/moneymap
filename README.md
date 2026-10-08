@@ -2,76 +2,75 @@
 
 **Know where you are. Know where to go.**
 
-MoneyMap is an intelligent financial decision and product-matching layer. It uses customer-permitted information, financial behaviour, goals and product eligibility to identify the most relevant financial product or action at the right time. When nothing is relevant enough, it doesn't recommend anything.
+MoneyMap is an intelligent financial decision layer. It helps Zenith understand what a customer needs, identify the product that best fits that need, decide whether the timing is right, and explain the recommendation before the customer chooses to act.
 
-Built for **Zenith Bank Zecathon 6.0 — Challenge #9: Intelligent Customer Product Matching**. This is a Phase 1 prototype on synthetic data.
+> Customer Goal + Financial Context + Product Fit + Timing = Relevant Recommendation.
+> If the match isn't strong enough, MoneyMap recommends nothing.
 
-```
-Customer → Consent → Context → Need → Product → Eligibility → Score → Timing → Recommendation → Explanation → Action → Feedback
-```
+Built for **Zenith Bank Zecathon 6.0 — Challenge #9: Intelligent Customer Product Matching**. Phase 2 build. See [`docs/PHASE2_AUDIT.md`](docs/PHASE2_AUDIT.md) for the KEEP / IMPROVE / BUILD / REMOVE audit.
 
 ## Run it
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173
-npm test           # decision-engine tests (vitest)
-npm run build      # typecheck + production build to dist/
+npm run dev          # http://localhost:5173
+npm test             # decision-engine unit tests (vitest)
+npm run build        # typecheck + production build to dist/
+npm run qa           # end-to-end QA in a real browser (run after npm run build)
+npm run build:embed  # single-page build for embedded viewers → dist-embed/moneymap.html
 ```
 
-The build is a static site with hash routing, so `dist/` can be hosted anywhere (GitHub Pages, Netlify, S3).
+`npm run qa` drives every core path at phone and desktop sizes: onboarding with invalid input, recommendation, Why?, product action, feedback, dismissal, all three personas, a goal change, consent withdrawal, "skip for now", the error and empty states, and the bank view. It fails on any broken screen, JavaScript error or sideways scroll. If Playwright can't find a browser, set `PW_CHROMIUM` to a Chromium executable.
 
-## Demo script (spec §69–70)
+## Demo Mode
 
-1. On the welcome page, pick **Sarah — The Saver**.
-2. Goal: *Save more* → ₦1,000,000 in 12 months → **Allow all** permissions.
-3. "Your financial map is ready" → **See my recommendation** → *Goal Savings Plan, 95% match*.
-4. **Why this?** shows the goal, behaviour, pattern, product fit, timing, eligibility, the data used, the full score breakdown, and why the other options weren't chosen.
-5. Back → **Not interested** → *Not relevant* → **Check my map again**. MoneyMap holds back on purpose instead of pushing another product (over-marketing control).
-6. Open **Bank admin** to see the feedback land, along with cohort metrics, the catalogue editor and the audit log.
+Every screen has a small **Demo** button (bottom left). It is for the presenting team, not customers. It loads any persona's full financial context instantly, or walks through their onboarding.
 
-The other demo customers each show a different decision:
-
-| Customer | Persona | Engine outcome |
+| Persona | Situation | MoneyMap outcome |
 |---|---|---|
-| Sarah | The Saver | Goal Savings Plan. The Investment Fund is excluded on income eligibility. |
-| Tunde | The Borrower | Personal Purpose Loan, after the affordability check passes. Savings products are excluded because his rent is due in 3 months. |
-| Amaka | The Growing Professional | Managed Investment Fund. The Fixed Deposit loses on horizon fit for her 24-month goal. |
-| Chidi | The Growing Business | SME Business Account, triggered by business inflows growing about 90%. |
-| Bola | No match | **No recommendation**. Her setup already fits, so MoneyMap doesn't invent a need. |
+| **Sarah, 24** — Saver | ₦450,000 salary, ₦280,000 spending, ₦170,000 left monthly. Goal: ₦1,000,000 in 12 months. Savings sit in her everyday account. | **SAVE4ME**, 95% match. Suggested ₦83,333/month. EazySave is ruled out (its reported balance cap is below her goal) and Aspire too (student-only). |
+| **Daniel, 21** — Student | 300-level student at UNILAG, monthly allowance plus gigs, almost fully cashless, on a basic savings account. | **Aspire**, 95% match. Personal Loan fails its published salary-account condition. |
+| **Tolu, 35** — No match | Senior accountant already saving through SAVE4ME, already has a credit card, no new goal. | **No recommendation.** "Nothing needs your attention." |
 
-Try withdrawing permissions in **Settings**: recommendations degrade, and with no permissions there is no personalised match at all.
+Live demo extra: give Tolu a new goal ("Buy a car", ₦6,000,000 in 12 months) and the answer changes to **Asset Finance**. Give Sarah "Pay my rent", ₦1,800,000 in 3 months, and it changes to **Personal Loan**, with SAVE4ME locked out because she needs the money soon.
 
-## What's in the prototype
+## Product catalogue (Phase 2 §10)
 
-**Customer app**: welcome, onboarding (goal → plain-language consent → map ready), dashboard (NOW → NEXT → GOAL route plus Where you are / Where you're going / Your next move), Insights map (detected signals with evidence and source, needs, and the decision funnel), recommendation, *Why this?*, product catalogue and detail (indicative eligibility check, application intent), goals (create, edit, delete, log progress, estimates), activity (recommendation history, feedback, consent record), settings (granular permissions, withdraw all, category and frequency preferences). Also included: empty, no-match, paused and error states (the error state can be simulated from Settings).
+SAVE4ME · Aspire · EazySave · Personal Loan · Asset Finance · Credit Card (`src/data/products.ts`).
 
-**Bank admin**: monitoring dashboard (North Star useful-recommendation rate, volume, acceptance, conversion, rejection, no-match rate, product performance, emerging needs, segments, quality and guardrails, live session feedback). It also has a versioned product catalogue editor (eligibility, needs, recommended-when and exclusion rules, status), an engine and rules page with the live API response, and an audit log.
+- **Published information** contains only facts found in public sources, each linked to its source. Zenith's own website was not reachable during the build, so the sources are press and comparison sites. **Confirm every fact against Zenith's approved product information before a pilot.**
+- **No interest rates, fees, limits, approval guarantees or processing times are invented.** Anything unpublished reads "Terms and eligibility are subject to Zenith Bank's current requirements."
+- **Published eligibility** (for example, Aspire for students aged 16–25, and Personal Loan requiring a salary account) is kept separate from **MoneyMap guardrails**: prototype suitability rules such as "principal repayment ≤ 33% of income" or "goal must fit the reported balance cap".
+- Loan estimates show the **principal only**, over an example 12-month period. Interest and charges are left to Zenith.
+- The brief lists "Aspire / Aspire Lite". Only Aspire was found in public sources.
 
-## Decision engine (`src/engine`)
+## How it decides (`src/engine`)
 
-Pure TypeScript with no UI dependencies, so it can move to a Node backend unchanged.
+Pure TypeScript with no UI dependencies, unit-tested, and visible in the app as **How MoneyMap reached this**:
 
-- `context.ts`, **Understand**: builds financial context from permitted data only. Each signal carries a strength, plain-language evidence and its source permission.
-- `needs.ts`, **Detect**: turns the goal and signals into scored needs.
+```
+Customer → Permitted data → Financial context → Goal → Need detection → Product fit → Eligibility → Timing → Recommendation → Explanation → Action
+```
+
+- `context.ts`, **Understand**: signals come only from permitted data, each with plain-language evidence and its source.
+- `needs.ts`, **Detect**: goal plus signals become scored needs.
 - `index.ts`, **Match / Decide / Explain**:
-  - MVP weights (spec §28): need 30%, goal 20%, behaviour 15%, eligibility 15%, timing 10%, preference 10%, minus irrelevance and overexposure penalties.
-  - Hard rules: inactive, category opt-out, declined or recently dismissed, already held, wrong segment, ineligible (age, income, balance, repayment ≤ 33% of income), conflict with the stated need, snoozed.
-  - Thresholds: ≥ 80 strong. 65–79 potential, shown only on request or when frequency isn't "only when highly relevant". Below 65, not recommended.
-  - Over-marketing controls: 1 proactive recommendation per 7-day window, a fatigue pause after 3 dismissals in 30 days, and a category pause after 2.
-  - Every recommendation carries reasons, why now, eligibility checks, next steps, why-not for alternatives, the data used, and the model version.
-- `plan.ts` holds transparent, clearly labelled estimates (monthly contribution, illustrative loan repayment).
+  - Weights: need 30%, goal 20%, behaviour 15%, eligibility 15%, timing 10%, preference 10%, minus penalties.
+  - Thresholds: 80+ is strong, 65–79 is potential (shown only on request), below 65 is not recommended.
+  - Hard rules: inactive, opted out, declined or recently dismissed, already held, published condition fails, guardrail fails, conflict with need, snoozed.
+  - Exposure control: at most 1 new suggestion per 7 days, a fatigue pause after 3 dismissals, and never the same product again after "Not relevant".
+- Each stored recommendation records `customer_id, product_id, need, match_score, reasons, timing_reason, eligibility_status, created_at, status`. Feedback values are `useful, not_relevant, not_understood, not_wanted, remind_later`.
 
-`src/services/api.ts` mirrors the REST endpoints in spec §38 as a mock client with latency. It is the integration seam for a real Node/PostgreSQL backend. `src/services/analytics.ts` runs the real engine over a deterministic synthetic cohort of 250 customers to power the admin metrics.
+`src/services/api.ts` mirrors the REST endpoints; this is where a Node/PostgreSQL backend plugs in. `src/services/analytics.ts` runs the real engine over 240 synthetic customers for 4 weekly decision rounds with simulated responses, to power the bank view.
 
-## Important prototype boundaries
+## Trust and boundaries
 
-- All customers are **synthetic**. No real customer data is used.
-- Product names, terms, fees and eligibility are **illustrative prototype assumptions, not actual Zenith product terms**. They must be replaced with Zenith-approved catalogue data.
-- MoneyMap does **not** approve credit, open accounts or move money. "Apply" records intent only.
-- Weights and thresholds are prototype values. They must be validated with historical data and controlled testing, under model governance, before production.
-- State persists in the browser's `localStorage` for the demo. **Reset all demo data** is in Settings.
+- All customers are **synthetic**; no real customer data is used.
+- MoneyMap **never decides for the customer**, approves credit, opens accounts or moves money. "Request to open" only records intent.
+- Data is used only within granted permissions. Withdrawing a permission takes effect immediately and is logged.
+- Weights and thresholds are prototype values. They must be validated with approved data under model governance before production.
+- Demo state lives in the browser (`localStorage`). Use **Demo → Reset everything** to start over.
 
 ## Stack
 
-React 19, TypeScript, Tailwind CSS v4, Vite, React Router, Lucide icons, Vitest. Inter typeface, with design tokens from the spec (§46–50, §80).
+React 19, TypeScript, Tailwind CSS v4, Vite, React Router, Lucide icons, Vitest and Playwright. Inter typeface, with the MoneyMap colour tokens.

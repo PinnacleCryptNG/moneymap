@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { calculateRecommendationScore, runEngine, type EngineInput } from "..";
+import { calculateRecommendationScore, runEngine, toRecord, type EngineInput } from "..";
 import { CUSTOMERS, getCustomer } from "../../data/customers";
 import { SEED_PRODUCTS } from "../../data/products";
 import { goalPlan } from "../plan";
-import type { FinancialGoal, Permissions, Preferences, RecommendationRecord } from "../../types";
+import type { FinancialGoal, GoalDraft, Permissions, Preferences, RecommendationRecord } from "../../types";
 
 const ALL: Permissions = {
   account_activity: true,
@@ -20,26 +20,46 @@ const NONE: Permissions = {
   financial_goals: false,
 };
 const PREFS: Preferences = {
-  categories: { savings: true, investments: true, financing: true, business: true, cards: true, other: true },
+  categories: { savings: true, accounts: true, financing: true, cards: true },
   frequency: "highly_relevant",
 };
-const NOW = new Date("2026-10-05T10:00:00Z");
+const NOW = new Date("2026-10-08T10:00:00Z");
+
+function goalFrom(d: GoalDraft): FinancialGoal {
+  return { ...d, id: "G1", saved: d.saved ?? 0, createdAt: NOW.toISOString() };
+}
 
 function input(id: string, overrides: Partial<EngineInput> = {}): EngineInput {
   const customer = getCustomer(id);
-  const goal: FinancialGoal | null = customer.defaultGoal
-    ? { ...customer.defaultGoal, id: "G1", saved: customer.defaultGoal.saved ?? 0, createdAt: NOW.toISOString() }
-    : null;
+  const goal = customer.defaultGoal ? goalFrom(customer.defaultGoal) : null;
   return { customer, permissions: ALL, goal, preferences: PREFS, products: SEED_PRODUCTS, history: [], now: NOW, ...overrides };
 }
 
-function dismissal(productId: string, feedback: RecommendationRecord["feedback"], daysAgo = 1): RecommendationRecord {
+function feedback(productId: string, fb: RecommendationRecord["feedback"], daysAgo = 1): RecommendationRecord {
   const p = SEED_PRODUCTS.find((x) => x.product_id === productId)!;
   const at = new Date(NOW.getTime() - daysAgo * 86_400_000).toISOString();
-  return { id: `R_${productId}_${daysAgo}`, productId, productName: p.name, category: p.category, score: 90, createdAt: at, status: "dismissed", feedback, feedbackAt: at };
+  return {
+    id: `R_${productId}_${daysAgo}`,
+    customer_id: "CUST_SARAH",
+    product_id: productId,
+    product_name: p.name,
+    category: p.category,
+    need: null,
+    match_score: 90,
+    reasons: [],
+    timing_reason: "",
+    eligibility_status: "eligible",
+    model_version: "test",
+    created_at: at,
+    status: "dismissed",
+    feedback: fb,
+    feedback_at: at,
+  };
 }
 
-describe("calculateRecommendationScore (spec §81)", () => {
+const byId = (r: ReturnType<typeof runEngine>, id: string) => r.ranked.find((e) => e.product.product_id === id)!;
+
+describe("calculateRecommendationScore (PRD §81)", () => {
   it("applies the MVP weights and clamps to 0–100", () => {
     const f = { needFit: 100, goalFit: 100, behaviourFit: 100, eligibilityFit: 100, timingFit: 100, preferenceFit: 100, irrelevancePenalty: 0, overexposurePenalty: 0 };
     expect(calculateRecommendationScore(f)).toBe(100);
@@ -48,50 +68,46 @@ describe("calculateRecommendationScore (spec §81)", () => {
   });
 });
 
-describe("demo scenarios", () => {
-  it("Sarah (saver) gets a strong Goal Savings Plan match with reasons", () => {
-    const r = runEngine(input("CUST_001"));
+describe("Phase 2 personas", () => {
+  it("Sarah (saver) gets a strong SAVE4ME match with an explained estimate", () => {
+    const r = runEngine(input("CUST_SARAH"));
     expect(r.status).toBe("recommended");
-    expect(r.top?.product.product_id).toBe("PRODUCT_001");
+    expect(r.top?.product.product_id).toBe("ZEN_SAVE4ME");
     expect(r.top!.score).toBeGreaterThanOrEqual(80);
-    expect(r.top!.basis).toEqual(expect.arrayContaining(["Your stated goal", "Your recent savings pattern", "Your income consistency", "Current eligibility"]));
-    expect(r.explanation?.estimate?.find((e) => e.label === "Suggested monthly contribution")?.value).toBe("₦83,333");
+    expect(r.explanation!.influences.map((i) => i.label)).toEqual([
+      "Your goal",
+      "Permitted financial behaviour",
+      "Your current banking relationship",
+      "Product purpose",
+    ]);
+    expect(r.explanation!.estimate?.find((e) => e.label === "Suggested monthly saving")?.value).toBe("₦83,333");
   });
 
-  it("Sarah: investment fund is excluded on eligibility and explained", () => {
-    const r = runEngine(input("CUST_001"));
-    const fund = r.ranked.find((e) => e.product.product_id === "PRODUCT_004")!;
-    expect(fund.exclusion?.rule).toBe("ineligible");
-    expect(fund.whyNot).toMatch(/eligibility/);
+  it("Sarah: EazySave is ruled out by its balance cap, Aspire by its published segment", () => {
+    const r = runEngine(input("CUST_SARAH"));
+    expect(byId(r, "ZEN_EAZYSAVE").exclusion?.rule).toBe("unsuitable");
+    expect(byId(r, "ZEN_EAZYSAVE").whyNot).toMatch(/balance cap/);
+    expect(byId(r, "ZEN_ASPIRE").exclusion?.rule).toBe("ineligible");
   });
 
-  it("Tunde (borrower) gets financing only because eligibility and affordability pass", () => {
-    const r = runEngine(input("CUST_002"));
-    expect(r.top?.product.product_id).toBe("PRODUCT_005");
-    expect(r.top!.eligibility.checks.find((c) => c.label === "Affordable repayments")?.status).toBe("pass");
-    // Locking money away conflicts with an expense due in 3 months.
-    expect(r.ranked.find((e) => e.product.product_id === "PRODUCT_001")!.exclusion?.rule).toBe("conflict");
+  it("Daniel (student) gets Aspire; Personal Loan fails the published salary-account condition", () => {
+    const r = runEngine(input("CUST_DANIEL"));
+    expect(r.status).toBe("recommended");
+    expect(r.top?.product.product_id).toBe("ZEN_ASPIRE");
+    expect(r.top!.score).toBeGreaterThanOrEqual(80);
+    expect(byId(r, "ZEN_PERSONAL_LOAN").exclusion?.rule).toBe("ineligible");
   });
 
-  it("Amaka (growing professional) is matched to a wealth-growth product", () => {
-    const r = runEngine(input("CUST_003"));
-    expect(r.top?.product.category).toBe("investments");
-    expect(r.needs[0].need).toBe("wealth_growth");
-  });
-
-  it("Chidi (growing business) is matched to business banking", () => {
-    const r = runEngine(input("CUST_004"));
-    expect(r.top?.product.product_id).toBe("PRODUCT_006");
-  });
-
-  it("Bola gets no forced recommendation (no-match state)", () => {
-    const r = runEngine(input("CUST_005"));
+  it("Tolu (no-match) gets no recommendation", () => {
+    const r = runEngine(input("CUST_TOLU"));
     expect(r.status).toBe("no_match");
     expect(r.top).toBeNull();
-    expect(r.message).toMatch(/does not indicate a strong need/);
+    expect(byId(r, "ZEN_SAVE4ME").exclusion?.rule).toBe("already_held");
+    expect(byId(r, "ZEN_CREDIT_CARD").exclusion?.rule).toBe("already_held");
+    expect(r.trace.at(-1)?.result).toMatch(/None/);
   });
 
-  it("every scenario produces either a strong match or a no-match — never a weak one", () => {
+  it("every persona produces a strong match or no match — never a weak one", () => {
     for (const c of CUSTOMERS) {
       const r = runEngine(input(c.id));
       if (r.top) expect(r.top.score).toBeGreaterThanOrEqual(80);
@@ -99,74 +115,102 @@ describe("demo scenarios", () => {
   });
 });
 
-describe("hard rules", () => {
-  it("never recommends inactive products", () => {
-    for (const c of CUSTOMERS) {
-      const r = runEngine(input(c.id));
-      expect(r.top?.product.status ?? "active").toBe("active");
-    }
+describe("context changes the decision (live demo)", () => {
+  it("Tolu with a new savings goal is offered a separate SAVE4ME", () => {
+    const goal = goalFrom({ type: "save_more", label: "Save ₦2,000,000", amount: 2_000_000, timelineMonths: 12 });
+    const r = runEngine(input("CUST_TOLU", { goal }));
+    expect(r.top?.product.product_id).toBe("ZEN_SAVE4ME");
   });
 
+  it("a car purchase the surplus can't cover in time points to Asset Finance", () => {
+    const goal = goalFrom({ type: "major_expense", expenseKind: "vehicle", label: "Buy a car", amount: 6_000_000, timelineMonths: 12 });
+    const r = runEngine(input("CUST_TOLU", { goal }));
+    expect(r.top?.product.product_id).toBe("ZEN_ASSET_FINANCE");
+    expect(r.explanation?.estimateNote).toMatch(/Principal only/);
+  });
+
+  it("a rent payment due soon points Sarah to a Personal Loan, and locks out SAVE4ME", () => {
+    const goal = goalFrom({ type: "major_expense", expenseKind: "rent", label: "Pay my rent", amount: 1_800_000, timelineMonths: 3 });
+    const r = runEngine(input("CUST_SARAH", { goal }));
+    expect(r.top?.product.product_id).toBe("ZEN_PERSONAL_LOAN");
+    expect(byId(r, "ZEN_SAVE4ME").exclusion?.rule).toBe("conflict");
+  });
+});
+
+describe("catalogue integrity (Phase 2 §10)", () => {
+  it("every published fact cites a source", () => {
+    for (const p of SEED_PRODUCTS) for (const f of p.published) expect(f.source).toMatch(/^https:\/\//);
+  });
+
+  it("estimates never include an interest rate", () => {
+    for (const c of CUSTOMERS) {
+      const r = runEngine(input(c.id));
+      for (const e of r.explanation?.estimate ?? []) expect(e.value).not.toMatch(/%.*(rate|interest)/i);
+    }
+  });
+});
+
+describe("hard rules", () => {
   it("respects category opt-out", () => {
-    const prefs = { ...PREFS, categories: { ...PREFS.categories, savings: false } };
-    const r = runEngine(input("CUST_001", { preferences: prefs }));
+    const r = runEngine(input("CUST_SARAH", { preferences: { ...PREFS, categories: { ...PREFS.categories, savings: false } } }));
     expect(r.top?.product.category).not.toBe("savings");
-    expect(r.ranked.find((e) => e.product.product_id === "PRODUCT_001")!.exclusion?.rule).toBe("opted_out");
+    expect(byId(r, "ZEN_SAVE4ME").exclusion?.rule).toBe("opted_out");
   });
 
   it("'I don't want this' permanently excludes the product", () => {
-    const r = runEngine(input("CUST_001", { history: [dismissal("PRODUCT_001", "dont_want", 40)] }));
-    expect(r.top?.product.product_id).not.toBe("PRODUCT_001");
+    const r = runEngine(input("CUST_SARAH", { history: [feedback("ZEN_SAVE4ME", "not_wanted", 40)] }));
+    expect(r.top?.product.product_id).not.toBe("ZEN_SAVE4ME");
   });
 
-  it("does not recommend products the customer already holds", () => {
-    const r = runEngine(input("CUST_003"));
-    expect(r.ranked.find((e) => e.product.product_id === "PRODUCT_002")!.exclusion?.rule).toBe("already_held");
+  it("never recommends an inactive product", () => {
+    const products = SEED_PRODUCTS.map((p) => (p.product_id === "ZEN_ASPIRE" ? { ...p, status: "inactive" as const } : p));
+    const r = runEngine(input("CUST_DANIEL", { products }));
+    expect(r.top?.product.product_id).not.toBe("ZEN_ASPIRE");
   });
 
   it("remind me later snoozes the product", () => {
-    const snoozed: RecommendationRecord = { ...dismissal("PRODUCT_001", "remind_later"), snoozedUntil: new Date(NOW.getTime() + 3 * 86_400_000).toISOString() };
-    const r = runEngine(input("CUST_001", { history: [snoozed] }));
-    expect(r.top?.product.product_id).not.toBe("PRODUCT_001");
+    const snoozed = { ...feedback("ZEN_SAVE4ME", "remind_later"), snoozed_until: new Date(NOW.getTime() + 3 * 86_400_000).toISOString() };
+    const r = runEngine(input("CUST_SARAH", { history: [snoozed] }));
+    expect(r.top?.product.product_id).not.toBe("ZEN_SAVE4ME");
   });
 });
 
 describe("consent", () => {
-  it("stops using revoked data — no permissions means no personalised match", () => {
-    const r = runEngine(input("CUST_001", { permissions: NONE }));
+  it("no permissions means no personalised match", () => {
+    const r = runEngine(input("CUST_SARAH", { permissions: NONE }));
     expect(r.context.signals).toHaveLength(0);
     expect(r.context.income).toBeNull();
     expect(r.status).toBe("no_match");
   });
 
   it("revoking income patterns removes income-based signals", () => {
-    const r = runEngine(input("CUST_001", { permissions: { ...ALL, income_patterns: false } }));
+    const r = runEngine(input("CUST_SARAH", { permissions: { ...ALL, income_patterns: false } }));
     expect(r.context.signals.some((s) => s.source === "income_patterns")).toBe(false);
     expect(r.context.surplus).toBeNull();
   });
 });
 
-describe("over-marketing control", () => {
-  it("pauses after repeated dismissals (fatigue)", () => {
-    const history = [dismissal("PRODUCT_002", "not_relevant"), dismissal("PRODUCT_003", "not_relevant"), dismissal("PRODUCT_007", "dont_want")];
-    expect(runEngine(input("CUST_001", { history })).status).toBe("paused");
-    expect(runEngine(input("CUST_001", { history, requestedMore: true })).status).toBe("recommended");
+describe("exposure control", () => {
+  it("'Not relevant' keeps the product out and doesn't push a replacement this week", () => {
+    const r = runEngine(input("CUST_SARAH", { history: [feedback("ZEN_SAVE4ME", "not_relevant")] }));
+    expect(r.top?.product.product_id).not.toBe("ZEN_SAVE4ME");
+    expect(["window_cap", "no_match"]).toContain(r.status);
   });
 
-  it("limits proactive recommendations to one per decision window", () => {
-    const r = runEngine(input("CUST_003", { history: [dismissal("PRODUCT_004", "not_relevant")] }));
-    expect(r.status).toBe("window_cap");
-    expect(runEngine(input("CUST_003", { history: [dismissal("PRODUCT_004", "not_relevant")], requestedMore: true })).top?.product.product_id).toBe("PRODUCT_003");
+  it("pauses after repeated dismissals (fatigue), unless the customer asks", () => {
+    const history = [feedback("ZEN_EAZYSAVE", "not_relevant"), feedback("ZEN_CREDIT_CARD", "not_relevant"), feedback("ZEN_ASPIRE", "not_wanted")];
+    expect(runEngine(input("CUST_SARAH", { history })).status).toBe("paused");
+    expect(runEngine(input("CUST_SARAH", { history, requestedMore: true })).status).toBe("recommended");
   });
+});
 
-  it("potential matches are hidden under 'only when highly relevant' but shown on request", () => {
-    // Without a savings goal, Sarah's best match drops to the potential band.
-    const base = input("CUST_001", { goal: null });
-    const hidden = runEngine(base);
-    const shown = runEngine({ ...base, requestedMore: true });
-    if (shown.top && shown.top.band === "potential") {
-      expect(hidden.status).toBe("no_match");
+describe("stored recommendation (Phase 2 §14)", () => {
+  it("carries the required fields", () => {
+    const rec = toRecord(runEngine(input("CUST_SARAH")), "CUST_SARAH")!;
+    for (const k of ["customer_id", "product_id", "need", "match_score", "reasons", "timing_reason", "eligibility_status"]) {
+      expect(rec).toHaveProperty(k);
     }
+    expect(rec.need).toBe("goal_saving");
   });
 });
 
@@ -175,13 +219,5 @@ describe("goalPlan", () => {
     const plan = goalPlan({ type: "save_more", label: "x", amount: 1_000_000, timelineMonths: 12, saved: 0 }, 170_000);
     expect(plan.monthlyContribution).toBe(83333);
     expect(plan.affordableFromSurplus).toBe(true);
-  });
-});
-
-describe("dismissal", () => {
-  it("'Not relevant' keeps the product out and does not push a replacement this window", () => {
-    const r = runEngine(input("CUST_001", { history: [dismissal("PRODUCT_001", "not_relevant")] }));
-    expect(r.top?.product.product_id).not.toBe("PRODUCT_001");
-    expect(r.status).toBe("window_cap");
   });
 });

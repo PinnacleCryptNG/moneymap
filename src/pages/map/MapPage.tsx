@@ -1,11 +1,11 @@
-import { Activity, ArrowRight, Briefcase, CreditCard, Gauge, Lock, PiggyBank, Radar, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { Activity, ArrowDownLeft, ArrowUpRight, Car, CreditCard, Gauge, GraduationCap, Lock, PiggyBank, Radar, Smartphone, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { useStore } from "../../app/providers/store";
 import { InsightCard } from "../../components/cards/InsightCard";
 import { MapJourney } from "../../components/cards/MapJourney";
-import { Badge } from "../../components/shared/Badge";
 import { ButtonLink } from "../../components/shared/Button";
 import { PageHeader } from "../../components/shared/PageHeader";
-import { NEED_LABELS, THRESHOLDS } from "../../engine";
+import { EnginePipeline } from "../../components/recommendations/EnginePipeline";
+import { NEED_LABELS } from "../../engine";
 import { goalPlan } from "../../engine/plan";
 import { PERMISSION_COPY } from "../../services/consent";
 import { useEngineResult } from "../../services/recommendation";
@@ -13,18 +13,21 @@ import type { Signal } from "../../types";
 import { formatNaira } from "../../utils/format";
 
 const SIGNAL_META: Record<Signal, { title: string; icon: typeof Activity; tone: "blue" | "green" | "amber" }> = {
-  consistent_income: { title: "Consistent income", icon: Wallet, tone: "green" },
+  consistent_income: { title: "Steady income", icon: Wallet, tone: "green" },
   irregular_income: { title: "Variable income", icon: Activity, tone: "amber" },
   income_increase: { title: "Income increase", icon: TrendingUp, tone: "green" },
-  regular_surplus: { title: "Regular surplus", icon: PiggyBank, tone: "green" },
+  salary_account: { title: "Salary paid into Zenith", icon: Wallet, tone: "blue" },
+  allowance_income: { title: "Allowance-based income", icon: Wallet, tone: "blue" },
+  regular_surplus: { title: "Money left over each month", icon: PiggyBank, tone: "green" },
   low_surplus: { title: "Tight cash flow", icon: TrendingDown, tone: "amber" },
   stated_savings_goal: { title: "Savings goal", icon: PiggyBank, tone: "blue" },
   savings_in_everyday_account: { title: "Savings mixed with spending", icon: Wallet, tone: "amber" },
+  has_dedicated_savings: { title: "Already saving separately", icon: PiggyBank, tone: "green" },
   repeated_saving_behaviour: { title: "Repeated saving", icon: PiggyBank, tone: "green" },
   planned_major_expense: { title: "Planned expense", icon: Wallet, tone: "blue" },
-  business_inflows: { title: "Business inflows", icon: Briefcase, tone: "blue" },
-  business_growth: { title: "Business growth", icon: TrendingUp, tone: "green" },
-  high_transaction_volume: { title: "High transaction volume", icon: Activity, tone: "blue" },
+  planned_asset_purchase: { title: "Planned asset purchase", icon: Car, tone: "blue" },
+  student_activity: { title: "Student activity", icon: GraduationCap, tone: "blue" },
+  digital_first: { title: "Cashless, app-first banking", icon: Smartphone, tone: "blue" },
   high_card_spend: { title: "Card-first spending", icon: CreditCard, tone: "blue" },
   no_emergency_buffer: { title: "Thin safety buffer", icon: Gauge, tone: "amber" },
   needs_immediate_liquidity: { title: "Money needed soon", icon: Gauge, tone: "amber" },
@@ -32,13 +35,10 @@ const SIGNAL_META: Record<Signal, { title: string; icon: typeof Activity; tone: 
 };
 
 export function MapPage() {
-  const { activeGoal } = useStore();
+  const { activeGoal, customer } = useStore();
   const result = useEngineResult();
-  const { context: ctx, needs, ranked } = result;
+  const { context: ctx, needs } = result;
   const plan = activeGoal ? goalPlan(activeGoal, ctx.surplus?.average ?? null) : null;
-  const evaluated = ranked.length;
-  const passed = ranked.filter((e) => !e.exclusion).length;
-  const above = ranked.filter((e) => !e.exclusion && e.score >= THRESHOLDS.potential).length;
   const missing = (Object.keys(ctx.permissions) as (keyof typeof ctx.permissions)[]).filter((k) => !ctx.permissions[k]);
 
   return (
@@ -47,8 +47,8 @@ export function MapPage() {
 
       <section className="card p-4 md:p-6">
         <MapJourney
-          now={ctx.surplus ? `${formatNaira(ctx.surplus.average)} monthly surplus` : "Context not shared"}
-          next={result.top?.product.name ?? null}
+          now={ctx.surplus ? `${formatNaira(Math.max(0, ctx.surplus.average))} left each month` : "Not shared yet"}
+          next={result.top?.product.name ?? "Nothing needed now"}
           goal={activeGoal?.label ?? "Set a goal"}
           progress={plan?.progressPct}
         />
@@ -69,7 +69,7 @@ export function MapPage() {
         {ctx.signals.length === 0 ? (
           <p className="card p-5 text-navy-500">No signals yet — MoneyMap needs at least some permitted information to understand your patterns.</p>
         ) : (
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {ctx.signals.map((s) => {
               const m = SIGNAL_META[s.signal];
               return (
@@ -110,37 +110,45 @@ export function MapPage() {
         )}
       </section>
 
-      <section aria-labelledby="funnel-title" className="card p-5 md:p-6">
-        <h2 id="funnel-title" className="mb-1 flex items-center gap-2 !text-[20px]"><Radar size={22} className="text-blue" aria-hidden /> How MoneyMap decided</h2>
-        <p className="mb-5 text-small text-navy-500">From the whole catalogue down to one recommendation — or none.</p>
-        <ol className="grid gap-3 sm:grid-cols-4">
-          {[
-            { n: evaluated, label: "Products evaluated" },
-            { n: passed, label: "Passed eligibility & hard rules" },
-            { n: above, label: `Scored ${THRESHOLDS.potential}+` },
-            { n: result.top ? 1 : 0, label: result.top ? "Recommended" : "Recommended — no strong match" },
-          ].map((s, i) => (
-            <li key={s.label} className="relative rounded-[12px] bg-cloud p-4">
-              <p className="text-[28px] font-bold leading-9 tabular-nums">{s.n}</p>
-              <p className="text-small text-navy-500">{s.label}</p>
-              {i < 3 && <ArrowRight size={16} className="absolute -right-3 top-1/2 hidden -translate-y-1/2 text-navy-500 sm:block" aria-hidden />}
-            </li>
-          ))}
-        </ol>
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          {result.top ? (
-            <>
-              <Badge tone="green">{result.top.product.name} · {result.top.score}%</Badge>
-              <ButtonLink to="/app/recommendation" size="sm">See recommendation</ButtonLink>
-            </>
-          ) : (
-            <>
-              <Badge>No recommendation</Badge>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.2fr]">
+        <section aria-labelledby="funnel-title" className="card p-5 md:p-6">
+          <h2 id="funnel-title" className="mb-1 flex items-center gap-2 !text-[20px]"><Radar size={22} className="text-blue" aria-hidden /> How MoneyMap decided</h2>
+          <p className="mb-5 text-small text-navy-500">From you, to one recommendation — or none.</p>
+          <EnginePipeline steps={result.trace} />
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            {result.top ? (
+              <ButtonLink to="/app/recommendation" size="sm">See the recommendation</ButtonLink>
+            ) : (
               <ButtonLink to="/app/products" size="sm" variant="secondary">Explore products myself</ButtonLink>
-            </>
+            )}
+          </div>
+        </section>
+
+        <section aria-labelledby="tx-title" className="card p-5 md:p-6">
+          <h2 id="tx-title" className="mb-1 !text-[20px]">Recent account activity</h2>
+          <p className="mb-4 text-small text-navy-500">Visible only to you. MoneyMap's engine uses monthly patterns, not individual payments.</p>
+          {ctx.activity ? (
+            <ul className="flex flex-col divide-y divide-mist">
+              {customer.transactions.map((t, i) => (
+                <li key={i} className="flex items-center gap-3 py-2.5">
+                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${t.direction === "in" ? "bg-green-50 text-green-700" : "bg-cloud text-navy-500"}`}>
+                    {t.direction === "in" ? <ArrowDownLeft size={16} aria-label="Money in" /> : <ArrowUpRight size={16} aria-label="Money out" />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-small font-medium">{t.description}</span>
+                    <span className="text-caption !font-normal text-navy-500">{t.daysAgo === 1 ? "Yesterday" : `${t.daysAgo} days ago`}</span>
+                  </span>
+                  <span className={`shrink-0 text-small font-semibold tabular-nums ${t.direction === "in" ? "text-green-700" : ""}`}>
+                    {t.direction === "in" ? "+" : "−"}{formatNaira(t.amount)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="flex items-center gap-2 text-small text-navy-500"><Lock size={16} aria-hidden /> You haven't shared account activity.</p>
           )}
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   );
 }

@@ -16,10 +16,11 @@ import type {
   RecommendationRecord,
   RecommendationStatus,
 } from "../../types";
+import { REMIND_LATER_DAYS } from "../../engine";
 import { uid } from "../../utils/format";
 
 export interface AppState {
-  schema: 3;
+  schema: 4;
   customerId: string;
   onboarded: boolean;
   permissions: Permissions;
@@ -63,8 +64,8 @@ function customerState(customerId: string): Pick<
 
 function initialState(): AppState {
   return {
-    schema: 3,
-    ...customerState("CUST_001"),
+    schema: 4,
+    ...customerState("CUST_SARAH"),
     products: SEED_PRODUCTS,
     productVersions: [],
     audit: [],
@@ -72,14 +73,14 @@ function initialState(): AppState {
   };
 }
 
-const STORAGE_KEY = "moneymap:v3";
+export const STORAGE_KEY = "moneymap:v4";
 
 function load(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as AppState;
-      if (parsed.schema === 3) return parsed;
+      if (parsed.schema === 4) return parsed;
     }
   } catch {
     /* storage unavailable — fall back to defaults */
@@ -89,6 +90,7 @@ function load(): AppState {
 
 export type Action =
   | { type: "select_customer"; customerId: string }
+  | { type: "demo_load"; customerId: string }
   | { type: "complete_onboarding"; permissions: Permissions; goal: GoalDraft | null }
   | { type: "set_permission"; key: PermissionKey; granted: boolean }
   | { type: "withdraw_all" }
@@ -97,11 +99,11 @@ export type Action =
   | { type: "set_active_goal"; id: string }
   | { type: "contribute"; id: string; amount: number }
   | { type: "set_preferences"; preferences: Preferences }
-  | { type: "record_recommendation"; record: Omit<RecommendationRecord, "id" | "createdAt" | "status"> }
+  | { type: "record_recommendation"; record: Omit<RecommendationRecord, "id" | "created_at" | "status"> }
   | { type: "set_recommendation_status"; id: string; status: RecommendationStatus }
   | { type: "feedback"; id: string; feedback: FeedbackType }
   | { type: "apply"; productId: string; productName: string }
-  | { type: "upsert_product"; product: Product }
+  | { type: "set_product_status"; productId: string; status: Product["status"] }
   | { type: "set_simulate_error"; value: boolean }
   | { type: "reset" };
 
@@ -109,7 +111,6 @@ function audit(state: AppState, actor: AuditEntry["actor"], action: string, deta
   return [{ id: uid("AUD"), at: new Date().toISOString(), actor, action, detail }, ...state.audit].slice(0, 300);
 }
 
-const REMIND_LATER_DAYS = 3;
 
 function reducer(state: AppState, action: Action): AppState {
   const now = new Date().toISOString();
@@ -120,6 +121,30 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         ...customerState(c.id),
         audit: audit(state, "system", "demo.customer_selected", `Switched demo customer to ${c.name} (${c.persona}).`),
+      };
+    }
+    case "demo_load": {
+      // Demo Mode: load a persona's full context instantly (team-only presentation tool).
+      const c = getCustomer(action.customerId);
+      const all: Permissions = {
+        account_activity: true,
+        income_patterns: true,
+        spending_patterns: true,
+        existing_products: true,
+        financial_goals: true,
+      };
+      const goals: FinancialGoal[] = c.defaultGoal
+        ? [{ ...c.defaultGoal, id: uid("GOAL"), saved: c.defaultGoal.saved ?? 0, createdAt: now }]
+        : [];
+      return {
+        ...state,
+        ...customerState(c.id),
+        onboarded: true,
+        permissions: all,
+        consentLog: [{ id: uid("CON"), permission: "all", granted: true, at: now }],
+        goals,
+        activeGoalId: goals[0]?.id ?? null,
+        audit: audit(state, "system", "demo.persona_loaded", `Demo Mode loaded ${c.name} (${c.persona}).`),
       };
     }
     case "complete_onboarding": {
@@ -201,11 +226,11 @@ function reducer(state: AppState, action: Action): AppState {
         audit: audit(state, "customer", "preferences.updated", `Frequency: ${action.preferences.frequency}.`),
       };
     case "record_recommendation": {
-      const rec: RecommendationRecord = { ...action.record, id: uid("REC"), createdAt: now, status: "recommended" };
+      const rec: RecommendationRecord = { ...action.record, id: uid("REC"), created_at: now, status: "recommended" };
       return {
         ...state,
         recommendations: [rec, ...state.recommendations],
-        audit: audit(state, "system", "recommendation.issued", `${rec.productName} (score ${rec.score}).`),
+        audit: audit(state, "system", "recommendation.issued", `${rec.product_name} for ${rec.customer_id} (match ${rec.match_score}, need ${rec.need ?? "—"}).`),
       };
     }
     case "set_recommendation_status":
@@ -219,7 +244,7 @@ function reducer(state: AppState, action: Action): AppState {
       const status: RecommendationStatus | null =
         action.feedback === "remind_later"
           ? "snoozed"
-          : action.feedback === "not_relevant" || action.feedback === "dont_want"
+          : action.feedback === "not_relevant" || action.feedback === "not_wanted"
             ? "dismissed"
             : null;
       return {
@@ -229,12 +254,12 @@ function reducer(state: AppState, action: Action): AppState {
             ? {
                 ...r,
                 feedback: action.feedback,
-                feedbackAt: now,
+                feedback_at: now,
                 status: status ?? r.status,
-                snoozedUntil:
+                snoozed_until:
                   action.feedback === "remind_later"
                     ? new Date(Date.now() + REMIND_LATER_DAYS * 86_400_000).toISOString()
-                    : r.snoozedUntil,
+                    : r.snoozed_until,
               }
             : r,
         ),
@@ -249,29 +274,19 @@ function reducer(state: AppState, action: Action): AppState {
           ...state.applications,
         ],
         recommendations: state.recommendations.map((r) =>
-          r.productId === action.productId ? { ...r, status: "applied" } : r,
+          r.product_id === action.productId ? { ...r, status: "applied" } : r,
         ),
         audit: audit(state, "customer", "product.application_started", action.productName),
       };
-    case "upsert_product": {
-      const prev = state.products.find((p) => p.product_id === action.product.product_id);
-      const product: Product = {
-        ...action.product,
-        version: prev ? prev.version + 1 : 1,
-        updated_at: now,
-      };
+    case "set_product_status": {
+      const prev = state.products.find((p) => p.product_id === action.productId);
+      if (!prev || prev.status === action.status) return state;
+      const product: Product = { ...prev, status: action.status, version: prev.version + 1, updated_at: now };
       return {
         ...state,
-        products: prev
-          ? state.products.map((p) => (p.product_id === product.product_id ? product : p))
-          : [...state.products, product],
-        productVersions: prev ? [prev, ...state.productVersions] : state.productVersions,
-        audit: audit(
-          state,
-          "admin",
-          prev ? "product.updated" : "product.created",
-          `${product.name} → v${product.version}${prev && prev.status !== product.status ? ` (${product.status})` : ""}.`,
-        ),
+        products: state.products.map((p) => (p.product_id === product.product_id ? product : p)),
+        productVersions: [prev, ...state.productVersions],
+        audit: audit(state, "admin", "product.status_changed", `${product.name} → ${product.status} (v${product.version}).`),
       };
     }
     case "set_simulate_error":

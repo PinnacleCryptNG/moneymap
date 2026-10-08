@@ -17,13 +17,13 @@ export function AdminEnginePage() {
   const { customer } = useStore();
   const input = useEngineInput();
   const result = runEngine(input);
-  const sample = toApiResponse(result, "REC_PREVIEW");
+  const sample = toApiResponse(result, "REC_PREVIEW", customer.id);
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader eyebrow="Decision engine" title="Engine & rules" body={`Phase 1: rules + weighted scoring. Model ${MODEL_VERSION}. Weights and thresholds are prototype values to be validated with historical data and controlled testing before production.`} />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section className="card p-5 md:p-6" aria-labelledby="w-title">
           <h2 id="w-title" className="mb-4 !text-[20px]">MVP scoring weights</h2>
           <table className="w-full text-small">
@@ -53,9 +53,10 @@ export function AdminEnginePage() {
             <li>Product is inactive</li>
             <li>Customer has opted out of the category</li>
             <li>Customer said “I don't want this”</li>
-            <li>Customer already holds the product or an equivalent</li>
-            <li>Not designed for the customer's segment</li>
-            <li>Eligibility fails (age, income, minimum balance, repayment affordability)</li>
+            <li>Customer already holds the product (SAVE4ME allows one per goal)</li>
+            <li>A published eligibility condition fails (e.g. student-only, age range, salary account)</li>
+            <li>A MoneyMap guardrail fails (repayment affordability, balance cap below the goal)</li>
+            <li>Customer recently said “Not relevant”</li>
             <li>Product conflicts with the stated need (e.g. locks funds needed soon)</li>
             <li>Customer asked to be reminded later (snoozed)</li>
           </ul>
@@ -73,12 +74,30 @@ export function AdminEnginePage() {
       <section className="card p-5 md:p-6" aria-labelledby="api-title">
         <h2 id="api-title" className="mb-1 !text-[20px]">Recommendation API</h2>
         <p className="mb-4 text-small text-navy-500">Live response for the current demo customer ({customer.firstName}) — <code>POST /api/v1/recommendations</code>.</p>
-        <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.4fr]">
           <ul className="font-mono text-[13px] leading-6 text-navy-700">
             {ENDPOINTS.map((e) => <li key={e}>{e}</li>)}
           </ul>
           <pre className="max-h-96 overflow-auto rounded-[12px] bg-navy p-4 text-[13px] leading-5 text-[#d6e4ff]"><code>{JSON.stringify(sample, null, 2)}</code></pre>
         </div>
+      </section>
+
+      <section className="card p-5 md:p-6" aria-labelledby="arch-title">
+        <h2 id="arch-title" className="mb-3 !text-[20px]">How it's built</h2>
+        <ol className="grid grid-cols-1 gap-3 text-small md:grid-cols-5">
+          {[
+            ["Customer app", "React + TypeScript. Consent, goals, MoneyMap screen, recommendation, explanation, feedback."],
+            ["API layer", "One function per REST endpoint (POST /api/v1/recommendations, …). The seam where a Node/PostgreSQL backend plugs in."],
+            ["Decision engine", "Pure TypeScript, no UI: Understand → Detect → Match → Decide → Explain. Fully unit-tested."],
+            ["Catalogue", "Six Zenith products: published facts with sources, published eligibility, MoneyMap guardrails, matching rules."],
+            ["Records", "Consent log, recommendation records (customer, product, need, score, reasons, timing, eligibility), feedback, audit log."],
+          ].map(([t, d], i) => (
+            <li key={t} className="rounded-[12px] bg-cloud p-3">
+              <p className="mb-1 font-semibold">{i + 1}. {t}</p>
+              <p className="text-navy-700">{d}</p>
+            </li>
+          ))}
+        </ol>
       </section>
 
       <section className="card p-5 md:p-6" aria-labelledby="gov-title">

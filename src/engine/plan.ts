@@ -36,12 +36,12 @@ export function goalPlan(goal: GoalDraft, monthlySurplus: number | null): GoalPl
   };
 }
 
-/** Prototype-only illustrative loan maths (flat monthly rate). Not an offer. */
-export const ILLUSTRATIVE_MONTHLY_RATE = 0.025;
-export const ILLUSTRATIVE_TENOR_MONTHS = 12;
+/**
+ * Example spread of a financing principal. MoneyMap never invents interest rates, fees or
+ * tenors: this is the principal only, over an example period, before Zenith's charges.
+ */
+export const EXAMPLE_TENOR_MONTHS = 12;
 
-export function loanEstimate(principal: number, tenorMonths = ILLUSTRATIVE_TENOR_MONTHS) {
-  const totalInterest = principal * ILLUSTRATIVE_MONTHLY_RATE * tenorMonths;
-  const monthly = Math.ceil((principal + totalInterest) / tenorMonths);
-  return { principal, tenorMonths, monthly, totalRepayable: principal + totalInterest };
+export function principalSpread(principal: number, tenorMonths = EXAMPLE_TENOR_MONTHS) {
+  return { principal, tenorMonths, monthly: Math.ceil(principal / tenorMonths) };
 }
