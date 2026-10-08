@@ -16,6 +16,8 @@ Then check:
 - `https://…onrender.com/docs` — the API documentation (judges can try endpoints here)
 - `https://…onrender.com/api/v1/health` — should return `"status":"ok"`
 
+Or run the automated check from any machine with the repo: `npm run smoke -- https://…onrender.com`.
+
 ## Things to know about the free plan
 
 - **It sleeps when unused.** After a period with no visits the service spins down, and the next visit can take close to a minute to wake it. **Open the link a few minutes before you present.**
