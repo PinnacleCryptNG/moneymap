@@ -1,0 +1,13 @@
+# Render Blueprint — deploys MoneyMap (API + app) from the Dockerfile.
+# In Render: New → Blueprint → pick this repo and branch.
+services:
+  - type: web
+    name: moneymap
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: MONEYMAP_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production

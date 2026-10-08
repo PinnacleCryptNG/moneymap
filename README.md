@@ -19,7 +19,7 @@ npm run build:server-app   # builds the app in API mode
 npm start                  # http://localhost:8080 — app on /, API on /api/v1, docs on /docs
 ```
 
-Or with Docker: `docker build -t moneymap . && docker run -p 8080:8080 -e MONEYMAP_SECRET=change-me moneymap`.
+To put it online, see [`docs/DEPLOY.md`](docs/DEPLOY.md) (Render, using `render.yaml`). Or with Docker: `docker build -t moneymap . && docker run -p 8080:8080 -e MONEYMAP_SECRET=change-me moneymap`.
 
 **Other commands:**
 
