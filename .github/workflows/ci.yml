@@ -1,0 +1,64 @@
+# Runs on every push and pull request: type checks, unit and API tests, a dependency audit,
+# and the full in-browser QA of both builds (browser-only and server/API mode).
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Types, tests and audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Type check (app)
+        run: npx tsc -b
+      - name: Type check (server)
+        run: npm run typecheck:server
+      - name: Unit, API, integration and security tests
+        run: npm test
+      - name: Dependency audit (production)
+        run: npm audit --omit=dev --audit-level=high
+
+  qa:
+    name: Browser QA (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [local, server]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Build (browser-only)
+        if: matrix.mode == 'local'
+        run: npm run build
+      - name: Build (API mode)
+        if: matrix.mode == 'server'
+        run: npm run build:server-app
+      - name: Run QA
+        run: npm run qa
+        env:
+          QA_SERVER: ${{ matrix.mode == 'server' && '1' || '' }}
