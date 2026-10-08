@@ -1,6 +1,7 @@
 import { ArrowLeft, BarChart3, History, Package, SlidersHorizontal } from "lucide-react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { LogoMark } from "../shared/Logo";
+import { SyncBanner } from "../shared/SyncBanner";
 
 const NAV = [
   { to: "/admin", label: "Overview", icon: BarChart3, end: true },
@@ -42,6 +43,7 @@ export function AdminShell() {
         </nav>
       </header>
       <main id="main" className="mx-auto max-w-7xl px-4 pb-16 pt-8 md:px-6">
+        <SyncBanner />
         <Outlet />
       </main>
     </div>

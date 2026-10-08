@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import { getCustomer } from "../../data/customers";
 import { DEFAULT_PREFERENCES } from "../../data/defaults";
 import { SEED_PRODUCTS } from "../../data/products";
@@ -17,6 +17,8 @@ import type {
   RecommendationStatus,
 } from "../../types";
 import { REMIND_LATER_DAYS } from "../../engine";
+import { API_MODE, http, HttpError, type ServerSnapshot } from "../../services/http";
+import { syncAction } from "../../services/sync";
 import { uid } from "../../utils/format";
 
 export interface AppState {
@@ -34,6 +36,8 @@ export interface AppState {
   productVersions: Product[];
   audit: AuditEntry[];
   simulateError: boolean;
+  /** API mode: last error talking to the server, shown as a banner. */
+  syncError: string | null;
 }
 
 const NO_PERMISSIONS: Permissions = {
@@ -70,6 +74,7 @@ function initialState(): AppState {
     productVersions: [],
     audit: [],
     simulateError: false,
+    syncError: null,
   };
 }
 
@@ -80,7 +85,7 @@ function load(): AppState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as AppState;
-      if (parsed.schema === 4) return parsed;
+      if (parsed.schema === 4) return { ...parsed, syncError: null };
     }
   } catch {
     /* storage unavailable — fall back to defaults */
@@ -105,7 +110,9 @@ export type Action =
   | { type: "apply"; productId: string; productName: string }
   | { type: "set_product_status"; productId: string; status: Product["status"] }
   | { type: "set_simulate_error"; value: boolean }
-  | { type: "reset" };
+  | { type: "reset" }
+  | { type: "hydrate"; snapshot: ServerSnapshot }
+  | { type: "sync_error"; message: string | null };
 
 function audit(state: AppState, actor: AuditEntry["actor"], action: string, detail: string): AuditEntry[] {
   return [{ id: uid("AUD"), at: new Date().toISOString(), actor, action, detail }, ...state.audit].slice(0, 300);
@@ -293,6 +300,17 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, simulateError: action.value };
     case "reset":
       return initialState();
+    case "hydrate": {
+      const s = action.snapshot;
+      return {
+        ...state,
+        ...s,
+        onboarded: state.onboarded || Object.values(s.permissions).some(Boolean) || s.goals.length > 0,
+        syncError: null,
+      };
+    }
+    case "sync_error":
+      return { ...state, syncError: action.message };
   }
 }
 
@@ -301,12 +319,50 @@ interface Store {
   dispatch: (action: Action) => void;
   customer: ReturnType<typeof getCustomer>;
   activeGoal: FinancialGoal | null;
+  /** Resolves once every queued server write has finished (API mode). */
+  synced: () => Promise<unknown>;
 }
 
 const StoreContext = createContext<Store | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, undefined, load);
+  const [state, localDispatch] = useReducer(reducer, undefined, load);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+
+  // In API mode every change is applied locally at once, then sent to the server in order;
+  // the server's answer replaces the local copy.
+  const dispatch = useCallback((action: Action) => {
+    const prev = stateRef.current;
+    localDispatch(action);
+    if (!API_MODE || action.type === "hydrate" || action.type === "sync_error") return;
+    queue.current = queue.current
+      .then(() => syncAction(action, prev))
+      .then((snapshot) => snapshot && localDispatch({ type: "hydrate", snapshot }))
+      .catch((e: Error) => {
+        if (e instanceof HttpError && e.status === 401) http.clearSession();
+        localDispatch({
+          type: "sync_error",
+          message:
+            e instanceof HttpError && e.status === 401
+              ? "Your demo session has expired. Choose a customer again from Demo Mode."
+              : `Couldn't reach the MoneyMap server: ${e.message}`,
+        });
+      });
+  }, []);
+
+  // API mode: load the server's copy on start.
+  useEffect(() => {
+    if (!API_MODE || !http.hasSession()) return;
+    http
+      .snapshot()
+      .then((snapshot) => localDispatch({ type: "hydrate", snapshot }))
+      .catch((e: Error) => {
+        if (e instanceof HttpError && e.status === 401) http.clearSession();
+        localDispatch({ type: "sync_error", message: "Couldn't load your MoneyMap from the server. Choose a customer again from Demo Mode." });
+      });
+  }, []);
 
   useEffect(() => {
     try {
@@ -319,8 +375,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Store>(() => {
     const customer = getCustomer(state.customerId);
     const activeGoal = state.goals.find((g) => g.id === state.activeGoalId) ?? state.goals[0] ?? null;
-    return { state, dispatch, customer, activeGoal };
-  }, [state]);
+    return { state, dispatch, customer, activeGoal, synced: () => queue.current.catch(() => undefined) };
+  }, [state, dispatch]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

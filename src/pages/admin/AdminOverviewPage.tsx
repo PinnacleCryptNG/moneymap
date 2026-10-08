@@ -1,10 +1,11 @@
 import { CheckCircle2, Info } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../../app/providers/store";
 import { Badge } from "../../components/shared/Badge";
 import { PageHeader } from "../../components/shared/PageHeader";
 import { DECISION_WINDOW_DAYS, NEED_LABELS } from "../../engine";
 import { ROUNDS, simulateCohort } from "../../services/analytics";
+import { API_MODE, http } from "../../services/http";
 import type { FinancialNeed } from "../../types";
 import { FEEDBACK_LABELS } from "../../utils/labels";
 
@@ -23,7 +24,6 @@ function Stat({ label, value, note, tone }: { label: string; value: string; note
 export function AdminOverviewPage() {
   const { state } = useStore();
   const m = useMemo(() => simulateCohort(state.products), [state.products]);
-  const live = state.recommendations;
   const needsUsed = [...new Set(m.products.flatMap((p) => Object.keys(p.needs)))] as FinancialNeed[];
 
   return (
@@ -146,22 +146,48 @@ export function AdminOverviewPage() {
         </section>
       </div>
 
-      <section className="card p-5 md:p-6" aria-labelledby="live-title">
-        <h2 id="live-title" className="mb-1 !text-[20px]">This session (live)</h2>
-        <p className="mb-4 text-small text-navy-500">Real events from the customer app in this browser — the feedback store that feeds quality analysis.</p>
-        {live.length === 0 ? (
-          <p className="text-navy-500">No recommendations issued yet in this session.</p>
-        ) : (
-          <ul className="flex flex-col divide-y divide-mist text-small">
-            {live.map((r) => (
-              <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
-                <span><span className="font-medium">{r.product_name}</span> → {r.customer_id} · {r.match_score}% · need: {r.need ? NEED_LABELS[r.need] : "—"}</span>
-                <Badge tone={r.feedback === "useful" ? "green" : r.feedback ? "neutral" : "blue"}>{r.feedback ? FEEDBACK_LABELS[r.feedback] : r.status}</Badge>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <LiveSection />
     </div>
+  );
+}
+
+function LiveSection() {
+  const { state } = useStore();
+  const [server, setServer] = useState<Record<string, number> | null>(null);
+  useEffect(() => {
+    if (API_MODE) http.adminMetrics().then((m) => setServer(m.live as Record<string, number>)).catch(() => setServer(null));
+  }, []);
+  const live = state.recommendations;
+  return (
+    <section className="card p-5 md:p-6" aria-labelledby="live-title">
+      <h2 id="live-title" className="mb-1 !text-[20px]">{API_MODE ? "Live from the MoneyMap server" : "This session (live)"}</h2>
+      <p className="mb-4 text-small text-navy-500">
+        {API_MODE
+          ? "Every recommendation stored on the server, across all customers — the feedback store that feeds quality analysis."
+          : "Real events from the customer app in this browser — the feedback store that feeds quality analysis."}
+      </p>
+      {API_MODE && server && (
+        <dl className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+          {(["generated", "accepted", "useful", "dismissed", "rejected"] as const).map((k) => (
+            <div key={k} className="rounded-[12px] bg-cloud p-3">
+              <dt className="text-small capitalize text-navy-500">{k}</dt>
+              <dd className="text-[22px] font-bold tabular-nums">{server[k] ?? 0}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {live.length === 0 ? (
+        <p className="text-navy-500">No recommendations issued yet for the current customer.</p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-mist text-small">
+          {live.map((r) => (
+            <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+              <span><span className="font-medium">{r.product_name}</span> → {r.customer_id} · {r.match_score}% · need: {r.need ? NEED_LABELS[r.need] : "—"}</span>
+              <Badge tone={r.feedback === "useful" ? "green" : r.feedback ? "neutral" : "blue"}>{r.feedback ? FEEDBACK_LABELS[r.feedback] : r.status}</Badge>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

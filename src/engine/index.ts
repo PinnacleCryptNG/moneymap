@@ -441,6 +441,8 @@ function evaluateProduct(
     exclusion = { rule: "inactive", reason: "This product isn't currently available." };
   } else if (!prefs.categories[p.category]) {
     exclusion = { rule: "opted_out", reason: `You asked MoneyMap not to suggest ${CATEGORY_LABEL[p.category]} products.` };
+  } else if (productHistory.some((h) => h.status === "applied")) {
+    exclusion = { rule: "already_held", reason: `You've already asked to open ${p.name}. Zenith will take it from here.` };
   } else if (productHistory.some((h) => h.feedback === "not_wanted")) {
     exclusion = { rule: "customer_declined", reason: "You told us you don't want this product." };
   } else if (recentDismissal) {

@@ -11,14 +11,29 @@ Built for **Zenith Bank Zecathon 6.0 — Challenge #9: Intelligent Customer Prod
 
 ## Run it
 
+**With the API server (recommended):**
+
 ```bash
 npm install
-npm run dev          # http://localhost:5173
-npm test             # decision-engine unit tests (vitest)
-npm run build        # typecheck + production build to dist/
-npm run qa           # end-to-end QA in a real browser (run after npm run build)
-npm run build:embed  # single-page build for embedded viewers → dist-embed/moneymap.html
+npm run build:server-app   # builds the app in API mode
+npm start                  # http://localhost:8080 — app on /, API on /api/v1, docs on /docs
 ```
+
+Or with Docker: `docker build -t moneymap . && docker run -p 8080:8080 -e MONEYMAP_SECRET=change-me moneymap`.
+
+**Other commands:**
+
+```bash
+npm run dev                # front end only, local mode — http://localhost:5173
+npm run dev:server         # API with auto-restart (pair with VITE_API_MODE=http npm run dev)
+npm test                   # engine + API tests (vitest)
+npm run build              # local-mode build to dist/
+npm run qa                 # browser QA against dist/ (local mode)
+QA_SERVER=1 npm run qa     # browser QA against the real server (after build:server-app)
+npm run build:embed        # single-page build for embedded viewers → dist-embed/moneymap.html
+```
+
+The API is described in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and is browsable at `/docs` on the running server.
 
 `npm run qa` drives every core path at phone and desktop sizes: onboarding with invalid input, recommendation, Why?, product action, feedback, dismissal, all three personas, a goal change, consent withdrawal, "skip for now", the error and empty states, and the bank view. It fails on any broken screen, JavaScript error or sideways scroll. If Playwright can't find a browser, set `PW_CHROMIUM` to a Chromium executable.
 
@@ -61,7 +76,7 @@ Customer → Permitted data → Financial context → Goal → Need detection �
   - Exposure control: at most 1 new suggestion per 7 days, a fatigue pause after 3 dismissals, and never the same product again after "Not relevant".
 - Each stored recommendation records `customer_id, product_id, need, match_score, reasons, timing_reason, eligibility_status, created_at, status`. Feedback values are `useful, not_relevant, not_understood, not_wanted, remind_later`.
 
-`src/services/api.ts` mirrors the REST endpoints; this is where a Node/PostgreSQL backend plugs in. `src/services/analytics.ts` runs the real engine over 240 synthetic customers for 4 weekly decision rounds with simulated responses, to power the bank view.
+The server (`server/`) runs the same engine behind a REST API, with consent enforcement before the engine, an SQLite database (Postgres-ready schema), stored recommendations and explanations, and a hash-chained audit log. `src/services/analytics.ts` runs the real engine over 240 synthetic customers for 4 weekly decision rounds with simulated responses, to power the bank view.
 
 ## Trust and boundaries
 

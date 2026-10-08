@@ -16,7 +16,7 @@ const STAGES = [
 ];
 
 export function LandingPage() {
-  const { state, customer } = useStore();
+  const { state, customer, dispatch } = useStore();
   const [howOpen, setHowOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -43,7 +43,14 @@ export function LandingPage() {
               Money comes in, money goes out, you have a goal — and the bank has many products. MoneyMap works out which one actually makes sense for you right now, explains why, and leaves the decision to you.
             </p>
             <div className="flex flex-wrap gap-3">
-              <Button onClick={() => navigate("/onboarding")} iconRight={<ArrowRight size={20} aria-hidden />}>
+              <Button
+                onClick={() => {
+                  // Starts a fresh MoneyMap (and, in API mode, a server session) for the current demo customer.
+                  dispatch({ type: "select_customer", customerId: state.customerId });
+                  navigate("/onboarding");
+                }}
+                iconRight={<ArrowRight size={20} aria-hidden />}
+              >
                 Build my MoneyMap
               </Button>
               <Button variant="secondary" onClick={() => setHowOpen(true)}>How it works</Button>

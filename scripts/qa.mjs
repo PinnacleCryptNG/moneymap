@@ -15,6 +15,19 @@ function check(name, ok, detail = "") {
   if (!ok) failures++;
 }
 
+async function portInUse() {
+  try {
+    await fetch(`http://localhost:${PORT}/`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+if (await portInUse()) {
+  console.error(`Port ${PORT} is already in use — stop whatever is running there and retry.`);
+  process.exit(1);
+}
+
 async function waitForServer() {
   for (let i = 0; i < 50; i++) {
     try {
@@ -28,7 +41,23 @@ async function waitForServer() {
   throw new Error("preview server did not start");
 }
 
-const server = spawn("npx", ["vite", "preview", "--port", String(PORT), "--strictPort"], { stdio: "ignore" });
+// QA_SERVER=1: run against the real MoneyMap server (build with `npm run build:server-app` first).
+const SERVER_MODE = process.env.QA_SERVER === "1";
+const server = SERVER_MODE
+  ? spawn("node", ["--disable-warning=ExperimentalWarning", "--import", "tsx", "server/index.ts"], {
+      stdio: "ignore",
+      detached: true,
+      env: { ...process.env, PORT: String(PORT), MONEYMAP_DB: ":memory:", NODE_ENV: "test" },
+    })
+  : spawn("npx", ["vite", "preview", "--port", String(PORT), "--strictPort"], { stdio: "ignore", detached: true });
+// Kill the whole process group (npx spawns children) so the port is free for the next run.
+const stopServer = () => {
+  try {
+    process.kill(-server.pid, "SIGTERM");
+  } catch {
+    /* already stopped */
+  }
+};
 const launchOpts = process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {};
 
 try {
@@ -103,6 +132,9 @@ try {
       check(`Engine steps shown (${size})`, await page.getByText("How MoneyMap reached this").isVisible());
       check(`₦83,333 estimate (${size})`, await page.getByText("₦83,333").isVisible());
 
+      await page.getByRole("button", { name: "Useful" }).click();
+      check(`Feedback stored (${size})`, (await page.getByRole("button", { name: "Useful" }).getAttribute("aria-pressed")) === "true");
+
       await page.getByRole("link", { name: /^Why this\?/ }).click();
       await page.getByRole("heading", { name: /Why did MoneyMap recommend/ }).waitFor();
       for (const label of ["Your goal", "Your financial context", "The product fit", "The timing", "Your data", "Eligibility"]) {
@@ -120,11 +152,10 @@ try {
       await page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click();
       await page.getByText(/Request submitted/).waitFor({ timeout: 3000 });
       check(`Product action recorded (${size})`, true);
-
       await go(page, "/app/recommendation");
-      await page.getByText("We found a strong match.").waitFor({ timeout: 5000 });
-      await page.getByRole("button", { name: "Useful" }).click();
-      check(`Feedback stored (${size})`, (await page.getByRole("button", { name: "Useful" }).getAttribute("aria-pressed")) === "true");
+      await page.waitForTimeout(900);
+      check(`Requested product not recommended again (${size})`, !(await page.getByRole("heading", { name: "SAVE4ME" }).isVisible()));
+
 
       for (const path of ["/app", "/app/map", "/app/goals", "/app/products", "/app/activity", "/app/settings"]) {
         await go(page, path);
@@ -231,9 +262,10 @@ try {
 
   await browser.close();
 } finally {
-  server.kill();
+  stopServer();
 }
 
+console.log(`QA mode: ${SERVER_MODE ? "MoneyMap server (API mode)" : "static preview (local mode)"}`);
 console.log(results.join("\n"));
 console.log(`\n${results.length - failures} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

@@ -168,6 +168,13 @@ describe("hard rules", () => {
     expect(r.top?.product.product_id).not.toBe("ZEN_ASPIRE");
   });
 
+  it("doesn't recommend a product the customer has already requested", () => {
+    const applied = { ...feedback("ZEN_SAVE4ME", "useful"), status: "applied" as const };
+    const r = runEngine(input("CUST_SARAH", { history: [applied] }));
+    expect(r.top?.product.product_id).not.toBe("ZEN_SAVE4ME");
+    expect(byId(r, "ZEN_SAVE4ME").whyNot).toMatch(/already asked/);
+  });
+
   it("remind me later snoozes the product", () => {
     const snoozed = { ...feedback("ZEN_SAVE4ME", "remind_later"), snoozed_until: new Date(NOW.getTime() + 3 * 86_400_000).toISOString() };
     const r = runEngine(input("CUST_SARAH", { history: [snoozed] }));

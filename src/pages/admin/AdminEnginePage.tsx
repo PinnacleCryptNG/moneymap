@@ -2,6 +2,7 @@ import { useStore } from "../../app/providers/store";
 import { PageHeader } from "../../components/shared/PageHeader";
 import { CATEGORY_FATIGUE_LIMIT, DECISION_WINDOW_DAYS, FATIGUE_LIMIT, FATIGUE_WINDOW_DAYS, MODEL_VERSION, THRESHOLDS, WEIGHTS, runEngine, toApiResponse } from "../../engine";
 import { ENDPOINTS } from "../../services/api";
+import { API_MODE } from "../../services/http";
 import { useEngineInput } from "../../services/recommendation";
 
 const WEIGHT_LABELS: Record<keyof typeof WEIGHTS, string> = {
@@ -73,7 +74,14 @@ export function AdminEnginePage() {
 
       <section className="card p-5 md:p-6" aria-labelledby="api-title">
         <h2 id="api-title" className="mb-1 !text-[20px]">Recommendation API</h2>
-        <p className="mb-4 text-small text-navy-500">Live response for the current demo customer ({customer.firstName}) — <code>POST /api/v1/recommendations</code>.</p>
+        <p className="mb-4 text-small text-navy-500">
+          Response shape for the current demo customer ({customer.firstName}) — <code>POST /api/v1/recommendations</code>.{" "}
+          {API_MODE ? (
+            <a href="/docs" target="_blank" rel="noreferrer" className="font-semibold text-blue-600 hover:underline">Open the live API docs →</a>
+          ) : (
+            "Run the MoneyMap server (npm start) to call these endpoints for real; docs at /docs."
+          )}
+        </p>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.4fr]">
           <ul className="font-mono text-[13px] leading-6 text-navy-700">
             {ENDPOINTS.map((e) => <li key={e}>{e}</li>)}

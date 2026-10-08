@@ -2,6 +2,7 @@ import { Activity, Compass, Flag, Home, LayoutGrid, Map as MapIcon, Settings, Sh
 import { NavLink, Navigate, Outlet, Link, useLocation } from "react-router-dom";
 import { useStore } from "../../app/providers/store";
 import { Logo } from "../shared/Logo";
+import { SyncBanner } from "../shared/SyncBanner";
 
 const SIDE = [
   { to: "/app", label: "Overview", icon: Home, end: true },
@@ -112,6 +113,7 @@ export function AppShell() {
       <div className="mx-auto flex max-w-7xl">
         <SideNavigation />
         <main id="main" className="min-w-0 flex-1 px-4 pb-28 pt-6 md:px-8 md:pb-12 md:pt-8">
+          <SyncBanner />
           <Outlet />
         </main>
       </div>

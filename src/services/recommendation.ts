@@ -3,6 +3,7 @@ import { useStore } from "../app/providers/store";
 import { runEngine, toRecord, type EngineInput, type EngineResult } from "../engine";
 import type { RecommendationRecord } from "../types";
 import { postRecommendations } from "./api";
+import { API_MODE, http } from "./http";
 
 export function useEngineInput(requestedMore = false): EngineInput {
   const { state, customer, activeGoal } = useStore();
@@ -37,7 +38,7 @@ export function findActiveRecord(records: RecommendationRecord[], productId: str
  * and records an exposure the first time a product is shown.
  */
 export function useRecommendation(requestedMore = false) {
-  const { state, dispatch, customer } = useStore();
+  const { state, dispatch, customer, synced } = useStore();
   const input = useEngineInput(requestedMore);
   const [result, setResult] = useState<EngineResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,14 +62,23 @@ export function useRecommendation(requestedMore = false) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    postRecommendations({ ...input, history: recordsRef.current }, { simulateError: state.simulateError })
+    const request = API_MODE
+      ? // The server runs the engine on consent-filtered data and stores the recommendation.
+        // Wait for queued writes (e.g. feedback just given) so the server decides on current data.
+        (state.simulateError ? Promise.reject(new Error("Connection interrupted")) : synced().then(() => http.recommend(requestedMore))).then(async (res) => {
+          dispatch({ type: "hydrate", snapshot: await http.snapshot() });
+          return res.engine;
+        })
+      : postRecommendations({ ...input, history: recordsRef.current }, { simulateError: state.simulateError }).then((r) => {
+          const record = toRecord(r, customer.id);
+          if (record && !findActiveRecord(recordsRef.current, record.product_id)) {
+            dispatch({ type: "record_recommendation", record });
+          }
+          return r;
+        });
+    request
       .then((r) => {
-        if (cancelled) return;
-        setResult(r);
-        const record = toRecord(r, customer.id);
-        if (record && !findActiveRecord(recordsRef.current, record.product_id)) {
-          dispatch({ type: "record_recommendation", record });
-        }
+        if (!cancelled) setResult(r);
       })
       .catch((e: Error) => !cancelled && setError(e.message))
       .finally(() => !cancelled && setLoading(false));

@@ -24,7 +24,7 @@ export function ProductDetailPage() {
   const input = useEngineInput(true);
   const result = useEngineResult(true);
   const evaluation = result.ranked.find((e) => e.product.product_id === id);
-  const [check, setCheck] = useState<Evaluation | null>(null);
+  const [check, setCheck] = useState<Pick<Evaluation, "eligibility"> | null>(null);
   const [checking, setChecking] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [applying, setApplying] = useState(false);
