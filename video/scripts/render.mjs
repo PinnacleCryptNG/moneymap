@@ -14,7 +14,7 @@ for (const [id, file] of [["Landscape", "MoneyMap-demo-1920x1080.mp4"], ["Portra
   let last = -10;
   await renderMedia({
     composition, serveUrl, browserExecutable,
-    codec: "h264", crf: 14, pixelFormat: "yuv420p", x264Preset: "slow",
+    codec: "h264", crf: id === "Portrait" ? 16 : 14, pixelFormat: "yuv420p", x264Preset: "slow",
     audioCodec: "aac", audioBitrate: "320k",
     concurrency: 4,
     outputLocation: `out/${file}`,
