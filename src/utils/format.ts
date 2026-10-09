@@ -9,6 +9,13 @@ export function formatNaira(value: number): string {
   return naira.format(Math.round(value)).replace(/NGN\s?/, "₦");
 }
 
+/** Compact naira for chart labels: ₦118k, ₦1.2m. */
+export function shortNaira(n: number): string {
+  if (Math.abs(n) >= 1_000_000) return `₦${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}m`;
+  if (Math.abs(n) >= 1_000) return `₦${Math.round(n / 1_000)}k`;
+  return formatNaira(n);
+}
+
 export function formatPct(value: number): string {
   return `${Math.round(value)}%`;
 }

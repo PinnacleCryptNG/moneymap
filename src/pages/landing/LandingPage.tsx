@@ -7,6 +7,7 @@ import {
   FileSearch,
   Lightbulb,
   LockKeyhole,
+  MousePointer2,
   MessageSquareText,
   ScanSearch,
   ShieldCheck,
@@ -21,11 +22,14 @@ import { Logo } from "../../components/shared/Logo";
 import { ThemeToggle } from "../../components/shared/ThemeToggle";
 import { CUSTOMERS } from "../../data/customers";
 import { ScoreRing } from "../../components/shared/ScoreRing";
+import { RouteChart } from "../../components/charts/RouteChart";
+import { useReveal } from "../../utils/motion";
 import { SiteFooter } from "../legal/LegalLayout";
 
 export function LandingPage() {
   const { state, customer, dispatch } = useStore();
   const navigate = useNavigate();
+  const page = useReveal<HTMLDivElement>();
 
   const build = () => {
     // Starts a fresh MoneyMap (and, in API mode, a server session) for the current demo customer.
@@ -38,7 +42,7 @@ export function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-canvas">
+    <div ref={page} className="min-h-screen bg-canvas">
       {/* ---------- Hero: what it is, in one look ---------- */}
       <div className="midnight relative overflow-hidden">
         <div className="grid-bg pointer-events-none absolute inset-0" aria-hidden />
@@ -73,12 +77,12 @@ export function LandingPage() {
                 </span>
                 Smart product matching for Zenith Bank
               </p>
-              <h1 className="mb-6 !text-[42px] !leading-[1.04] text-white sm:!text-[56px] lg:!text-[64px]">
-                Your money, mapped.
-                <span className="text-gradient block">One right move.</span>
+              <h1 className="mb-6 !text-[44px] !font-semibold !leading-[1.02] !tracking-[-0.045em] text-white sm:!text-[58px] lg:!text-[68px]">
+                Your money, <span className="accent-serif text-mint">mapped.</span>
+                <span className="block text-white/90">One right move.</span>
               </h1>
-              <p className="mb-8 max-w-xl text-[18px] leading-[1.6] text-white/75 sm:text-[19px]">
-                MoneyMap reads your account — only what you allow — and finds the <strong className="font-semibold text-white">one Zenith product that genuinely helps</strong>. If nothing would, it says so. Every time, it shows you why.
+              <p className="mb-8 max-w-[34rem] text-[18px] leading-[1.6] text-white/70">
+                MoneyMap reads only what you allow, then shows the <strong className="font-medium text-white">one Zenith product that genuinely helps</strong> — and why. If nothing would, it says so.
               </p>
               <div className="flex flex-wrap gap-3">
                 <Button onClick={build} iconRight={<ArrowRight size={20} aria-hidden />} className="!min-h-13 !px-6 !text-[17px]">
@@ -98,7 +102,14 @@ export function LandingPage() {
                 ))}
               </ul>
             </div>
-            <HeroPreview />
+            <div className="fade-up relative mx-auto w-full max-w-[560px] lg:mx-0 lg:ml-auto" style={{ animationDelay: "250ms" }}>
+              <div className="rounded-[28px] border border-white/10 bg-white/[.03] p-1.5 shadow-[0_40px_80px_-30px_rgb(0_0_0/0.8)]">
+                <RouteChart target={1_000_000} saved={0} surplus={170_000} timelineMonths={12} goalLabel="Sarah · ₦1,000,000 savings goal" nextMove="SAVE4ME" compact />
+              </div>
+              <p className="mt-3 flex items-center justify-center gap-2 text-small text-white/55 lg:justify-end">
+                <MousePointer2 size={14} aria-hidden className="text-mint" /> Drag across the route, or move the slider
+              </p>
+            </div>
           </section>
         </main>
       </div>
@@ -112,10 +123,10 @@ export function LandingPage() {
             { icon: ScanSearch, n: "2", title: "MoneyMap reads the pattern", body: "Salary, spending, savings habits and goals, worked out from your real statement lines." },
             { icon: Lightbulb, n: "3", title: "One clear next move", body: "The single product that fits, why it fits, and why now. Or an honest “nothing needed”." },
           ].map(({ icon: Icon, n, title, body }) => (
-            <li key={n} className="card card-hover flex gap-4 p-5 md:p-6">
+            <li key={n} className="reveal card card-hover flex gap-4 p-5 md:p-6" style={{ transitionDelay: `${Number(n) * 80}ms` }}>
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-green-50 text-green-700"><Icon size={22} aria-hidden /></span>
               <div>
-                <p className="mb-1 text-caption font-bold text-ink-3">STEP {n}</p>
+                <p className="mb-1 font-mono text-[12px] text-ink-3">0{n}</p>
                 <h3 className="mb-1 !text-[18px]">{title}</h3>
                 <p className="text-small text-ink-2">{body}</p>
               </div>
@@ -126,16 +137,16 @@ export function LandingPage() {
 
       {/* ---------- See it decide ---------- */}
       <section className="mx-auto max-w-6xl px-4 pb-6 pt-20 md:px-6" aria-labelledby="demo-title">
-        <div className="mb-8 max-w-2xl">
+        <div className="reveal mb-8 max-w-2xl">
           <p className="eyebrow mb-3 !text-green-700">See it decide</p>
-          <h2 id="demo-title" className="mb-3 !text-[30px] sm:!text-[36px]">Two customers. Two honest answers.</h2>
+          <h2 id="demo-title" className="mb-3 !text-[30px] sm:!text-[40px]">Two customers. Two <span className="accent-serif">honest</span> answers.</h2>
           <p className="text-[17px] text-ink-2">Real-looking Nigerian accounts, synthetic data. Open either one and watch MoneyMap work.</p>
         </div>
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           {CUSTOMERS.map((c) => {
             const match = c.id === "CUST_SARAH";
             return (
-              <article key={c.id} className="card card-hover flex flex-col overflow-hidden">
+              <article key={c.id} className="reveal card card-hover flex flex-col overflow-hidden">
                 <div className="flex items-center gap-3 p-5 md:p-6">
                   <span className={`flex h-12 w-12 items-center justify-center rounded-full font-display text-[18px] font-bold ${match ? "bg-mint text-night" : "bg-night text-white"}`} aria-hidden>{c.firstName[0]}</span>
                   <div>
@@ -149,7 +160,7 @@ export function LandingPage() {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-caption font-bold uppercase tracking-wider text-green-700">Next move</p>
-                        <p className="font-display text-[20px] font-bold">SAVE4ME</p>
+                        <p className="font-display text-[20px] font-semibold">SAVE4ME</p>
                         <p className="text-small text-ink-3">₦170,000 left monthly · goal ₦1,000,000</p>
                       </div>
                       <ScoreRing value={95} />
@@ -159,7 +170,7 @@ export function LandingPage() {
                       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-canvas text-ink-2"><CircleSlash size={20} aria-hidden /></span>
                       <div>
                         <p className="text-caption font-bold uppercase tracking-wider text-ink-3">Next move</p>
-                        <p className="font-display text-[20px] font-bold">Nothing needed</p>
+                        <p className="font-display text-[20px] font-semibold">Nothing needed</p>
                         <p className="text-small text-ink-3">Already well served — so MoneyMap stays quiet.</p>
                       </div>
                     </div>
@@ -186,9 +197,9 @@ export function LandingPage() {
 
       {/* ---------- Why it's different ---------- */}
       <section className="mx-auto max-w-6xl px-4 py-20 md:px-6" aria-labelledby="why-title">
-        <div className="mb-8 max-w-2xl">
+        <div className="reveal mb-8 max-w-2xl">
           <p className="eyebrow mb-3 !text-green-700">Why it's different</p>
-          <h2 id="why-title" className="!text-[30px] sm:!text-[36px]">The right product, for the right reason.</h2>
+          <h2 id="why-title" className="!text-[30px] sm:!text-[40px]">The right product, for the <span className="accent-serif">right reason.</span></h2>
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
           <Feature className="md:col-span-4" icon={<FileSearch size={20} aria-hidden />} title="Reads real statements, not forms" body="A categoriser built for Nigerian bank narrations — NIP, POS, WEB, REMITA, ATM — turns raw lines into income, spending and habits.">
@@ -216,10 +227,10 @@ export function LandingPage() {
 
       {/* ---------- Closing call to action ---------- */}
       <section className="px-4 pb-20 md:px-6">
-        <div className="midnight relative mx-auto max-w-6xl overflow-hidden rounded-[28px] px-6 py-14 text-center md:px-12">
+        <div className="reveal midnight relative mx-auto max-w-6xl overflow-hidden rounded-[28px] px-6 py-14 text-center md:px-12">
           <div className="grid-bg pointer-events-none absolute inset-0" aria-hidden />
           <div className="relative">
-            <h2 className="mb-3 !text-[30px] text-white sm:!text-[40px]">Know where you are. Know where to go.</h2>
+            <h2 className="mb-3 !text-[30px] text-white sm:!text-[44px]">Know where you are. <span className="accent-serif text-mint">Know where to go.</span></h2>
             <p className="mx-auto mb-8 max-w-xl text-[17px] text-white/75">It takes about a minute. Share only what you want, and see your map — and your one right move.</p>
             <div className="flex flex-wrap justify-center gap-3">
               <Button onClick={build} iconRight={<ArrowRight size={20} aria-hidden />}>Start my MoneyMap</Button>
@@ -241,77 +252,11 @@ export function LandingPage() {
 
 function Feature({ icon, title, body, className = "", children }: { icon: ReactNode; title: string; body: string; className?: string; children?: ReactNode }) {
   return (
-    <div className={`card card-hover p-5 md:p-6 ${className}`}>
+    <div className={`reveal card card-hover p-5 md:p-6 ${className}`}>
       <span className="mb-4 flex h-10 w-10 items-center justify-center rounded-[12px] bg-blue-50 text-blue-600">{icon}</span>
       <h3 className="mb-1.5 !text-[18px]">{title}</h3>
       <p className="text-small text-ink-2">{body}</p>
       {children}
-    </div>
-  );
-}
-
-/** The hero's live preview: statement lines become an insight, then one recommendation. */
-function HeroPreview() {
-  return (
-    <div className="relative mx-auto w-full max-w-[460px] lg:mx-0 lg:ml-auto" aria-hidden="true">
-      <div className="float rounded-[28px] border border-white/10 bg-white/[.06] p-4 shadow-[0_40px_80px_-30px_rgb(0_0_0/0.7)] backdrop-blur-md sm:p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <p className="text-caption font-bold uppercase tracking-wider text-white/55">Reading Sarah's account</p>
-          <span className="flex items-center gap-1.5 text-caption text-[#2ee6a8]"><span className="h-1.5 w-1.5 rounded-full bg-[#2ee6a8]" /> live</span>
-        </div>
-        <div className="flex flex-col gap-2">
-          {[
-            ["NIP/BRIGHTPATH LTD/SALARY", "+₦450,000", "Salary"],
-            ["POS/SHOPRITE LEKKI", "−₦23,400", "Food"],
-            ["NIP TRF TO A. NWOSU/RENT", "−₦60,000", "Rent"],
-          ].map(([n, a, c], i) => (
-            <div key={n} className="slide-in flex items-center justify-between gap-3 rounded-[12px] bg-white/[.06] px-3 py-2.5" style={{ animationDelay: `${300 + i * 260}ms` }}>
-              <div className="min-w-0">
-                <p className="truncate font-mono text-[12px] text-white/70">{n}</p>
-                <p className="text-caption font-semibold text-white/50">{c}</p>
-              </div>
-              <span className={`shrink-0 font-display text-[14px] font-bold ${a.startsWith("+") ? "text-[#2ee6a8]" : "text-white/85"}`}>{a}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="fade-up my-4 flex items-center gap-3 rounded-[14px] border border-[#2ee6a8]/25 bg-[#2ee6a8]/10 px-4 py-3" style={{ animationDelay: "1250ms" }}>
-          <Sparkles size={18} className="shrink-0 text-[#2ee6a8]" />
-          <p className="text-small text-white/90"><strong className="font-semibold text-white">₦170,000</strong> left each month — sitting in her everyday account.</p>
-        </div>
-
-        <div className="fade-up rounded-[18px] bg-white p-4 text-[#0a1628] sm:p-5" style={{ animationDelay: "1650ms" }}>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-caption font-bold uppercase tracking-wider text-[#047857]">Your next move</p>
-              <p className="font-display text-[24px] font-extrabold leading-tight">SAVE4ME</p>
-              <p className="text-small text-[#56657c]">≈ ₦83,333 a month → ₦1,000,000 in 12 months</p>
-            </div>
-            <ScoreRingStatic value={95} />
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {["Why it fits", "Why now", "What we used"].map((t) => (
-              <span key={t} className="rounded-full bg-[#eef2f7] px-3 py-1 text-caption font-semibold text-[#334159]">{t}</span>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Ring with fixed light colours, for the always-white preview card. */
-function ScoreRingStatic({ value }: { value: number }) {
-  const size = 68;
-  const r = (size - 8) / 2;
-  const c = 2 * Math.PI * r;
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth="6" stroke="#e2e8f0" />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth="6" strokeLinecap="round" stroke="#10b981" className="route-draw" style={{ ["--len" as string]: c, strokeDasharray: `${(c * value) / 100} ${c}`, animationDelay: "1900ms" }} />
-      </svg>
-      <span className="absolute inset-0 flex items-center justify-center font-display text-[16px] font-extrabold">{value}%</span>
     </div>
   );
 }

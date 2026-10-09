@@ -132,7 +132,9 @@ export function AppShell() {
         <SideNavigation />
         <main id="main" className="min-w-0 flex-1 px-4 pb-28 pt-6 md:px-8 md:pb-12 md:pt-8">
           <SyncBanner />
-          <Outlet />
+          <div key={location.pathname} className="page-in">
+            <Outlet />
+          </div>
         </main>
       </div>
       <BottomNavigation />

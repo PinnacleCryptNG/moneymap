@@ -68,6 +68,17 @@ export interface CohortMetrics {
   products: ProductStat[];
   needTotals: { need: FinancialNeed; count: number }[];
   segments: { archetype: string; customers: number; topProduct: string; matchRate: number }[];
+  /** The same figures for each weekly round, for trend lines. */
+  weekly: WeekStat[];
+}
+
+export interface WeekStat {
+  decisions: number;
+  generated: number;
+  useful: number;
+  accepted: number;
+  noMatch: number;
+  heldBack: number;
 }
 
 const HOLDING_FOR: Partial<Record<string, ExistingProductId>> = {
@@ -132,6 +143,7 @@ export function simulateCohort(products: Product[], size = 240, seed = 8): Cohor
     customers: size, decisions: 0, generated: 0, accepted: 0, rejected: 0, dismissed: 0, noMatch: 0, useful: 0,
     notRelevant: 0, notUnderstood: 0, remindLater: 0, windowCapped: 0, paused: 0, exposuresPerCustomer: 0,
     maxExposures: 0, repeatAfterDismissal: 0, unexplained: 0, products: [], needTotals: [], segments: [],
+    weekly: Array.from({ length: ROUNDS }, () => ({ decisions: 0, generated: 0, useful: 0, accepted: 0, noMatch: 0, heldBack: 0 })),
   };
   const needTotals = new Map<FinancialNeed, number>();
   const segment = new Map<string, { customers: number; matched: number; tally: Map<string, number> }>();
@@ -158,6 +170,10 @@ export function simulateCohort(products: Product[], size = 240, seed = 8): Cohor
       const now = new Date(start + w * 7 * 86_400_000);
       const result = runEngine({ customer, permissions, goal, preferences: DEFAULT_PREFERENCES, products, history, now });
       m.decisions++;
+      const wk = m.weekly[w];
+      wk.decisions++;
+      if (result.status === "no_match") wk.noMatch++;
+      if (result.status === "window_cap" || result.status === "paused") wk.heldBack++;
       if (w === 0 && result.needs[0]) needTotals.set(result.needs[0].need, (needTotals.get(result.needs[0].need) ?? 0) + 1);
       if (result.status === "no_match") m.noMatch++;
       if (result.status === "window_cap") m.windowCapped++;
@@ -174,6 +190,7 @@ export function simulateCohort(products: Product[], size = 240, seed = 8): Cohor
       exposures++;
       matched = true;
       m.generated++;
+      wk.generated++;
       const s = stats.get(rec.product_id)!;
       s.recommended++;
       s.avgScore += rec.match_score;
@@ -192,7 +209,7 @@ export function simulateCohort(products: Product[], size = 240, seed = 8): Cohor
         snoozed_until: fb === "remind_later" ? new Date(now.getTime() + REMIND_LATER_DAYS * 86_400_000).toISOString() : undefined,
       };
       history.push(record);
-      if (fb === "useful") { m.useful++; s.useful++; }
+      if (fb === "useful") { m.useful++; s.useful++; wk.useful++; }
       if (fb === "not_relevant") { m.notRelevant++; m.dismissed++; s.dismissed++; }
       if (fb === "remind_later") { m.remindLater++; m.dismissed++; s.dismissed++; }
       if (fb === "not_wanted") { m.rejected++; s.rejected++; }
@@ -200,6 +217,7 @@ export function simulateCohort(products: Product[], size = 240, seed = 8): Cohor
       if (applied) {
         m.accepted++;
         s.accepted++;
+        wk.accepted++;
         const holding = HOLDING_FOR[rec.product_id];
         if (holding) customer.existingProducts = [...customer.existingProducts, holding];
       }
