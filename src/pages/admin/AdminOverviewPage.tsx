@@ -46,7 +46,7 @@ export function AdminOverviewPage() {
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.5fr_1fr]">
-        <section className="card overflow-x-auto p-5 md:p-6" aria-labelledby="match-title">
+        <section tabIndex={0} className="card overflow-x-auto p-5 md:p-6 focus:outline-none focus-visible:ring-3 focus-visible:ring-blue/40" aria-labelledby="match-title">
           <h2 id="match-title" className="mb-1 !text-[20px]">Which products meet which needs</h2>
           <p className="mb-4 text-small text-navy-500">Recommendations by product and the need that triggered them.</p>
           <table className="w-full min-w-[560px] text-small">
@@ -113,7 +113,7 @@ export function AdminOverviewPage() {
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <section className="card overflow-x-auto p-5 md:p-6" aria-labelledby="seg-title">
+        <section tabIndex={0} className="card overflow-x-auto p-5 md:p-6 focus:outline-none focus-visible:ring-3 focus-visible:ring-blue/40" aria-labelledby="seg-title">
           <h2 id="seg-title" className="mb-1 !text-[20px]">By customer group</h2>
           <p className="mb-4 text-small text-navy-500">Each synthetic customer gets varied goals, so even well-served customers sometimes have a genuine new need.</p>
           <table className="w-full min-w-[380px] text-small">
@@ -147,7 +147,36 @@ export function AdminOverviewPage() {
       </div>
 
       <LiveSection />
+      <VisitsSection />
     </div>
+  );
+}
+
+/** Anonymous visits to the public pages — a daily count only, no cookies or identifiers. */
+export function VisitsSection() {
+  const [data, setData] = useState<{ total: number; by_page: { path: string; visits: number }[] } | null>(null);
+  useEffect(() => {
+    if (API_MODE) http.adminAnalytics().then(setData).catch(() => setData(null));
+  }, []);
+  if (!API_MODE) return null;
+  const NAMES: Record<string, string> = { "/": "Home page", "/privacy": "Privacy policy", "/terms": "Terms of use" };
+  return (
+    <section className="card p-5 md:p-6" aria-labelledby="visits-title">
+      <h2 id="visits-title" className="mb-1 !text-[20px]">Public page visits · last 30 days</h2>
+      <p className="mb-4 text-small text-navy-500">Counted without cookies, IP addresses or identifiers, and never on customers' financial screens. Browsers that send Do Not Track aren't counted.</p>
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-[12px] bg-cloud p-3">
+          <dt className="text-small text-navy-500">All public pages</dt>
+          <dd className="text-[22px] font-bold tabular-nums">{data?.total ?? "—"}</dd>
+        </div>
+        {(data?.by_page ?? []).map((p) => (
+          <div key={p.path} className="rounded-[12px] bg-cloud p-3">
+            <dt className="text-small text-navy-500">{NAMES[p.path]}</dt>
+            <dd className="text-[22px] font-bold tabular-nums">{p.visits}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 

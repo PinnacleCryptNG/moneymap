@@ -14,7 +14,23 @@ async function api(method, path, body, token) {
   });
   return { status: res.status, json: res.status === 204 ? null : await res.json().catch(() => null) };
 }
-const session = async (id) => (await api("POST", "/demo/session", { customer_id: id, preload: true })).json.token;
+// Bot protection: solve the server's sign-in puzzle (SHA-256 with a number of leading zero bits).
+import { createHash } from "node:crypto";
+async function pow() {
+  const c = (await api("GET", "/demo/challenge")).json;
+  if (!c?.bits) return undefined;
+  for (let i = 0; ; i++) {
+    const h = createHash("sha256").update(`${c.challenge}:${i}`).digest();
+    let n = 0;
+    for (const b of h) {
+      if (b === 0) { n += 8; continue; }
+      n += Math.clz32(b) - 24;
+      break;
+    }
+    if (n >= c.bits) return { challenge: c.challenge, nonce: String(i) };
+  }
+}
+const session = async (id) => (await api("POST", "/demo/session", { customer_id: id, preload: true, pow: await pow() })).json.token;
 
 console.log(`Smoke test: ${BASE}`);
 const t0 = Date.now();
@@ -26,8 +42,28 @@ const page = await fetch(`${BASE}/`);
 const html = await page.text();
 check("App page served", page.ok && html.includes('id="root"'));
 const script = html.match(/src="([^"]+\.js)"/)?.[1];
-const bundle = script ? await (await fetch(new URL(script, `${BASE}/`))).text() : "";
+const scriptUrl = script ? new URL(script, `${BASE}/`) : null;
+const main = scriptUrl ? await (await fetch(scriptUrl)).text() : "";
+// The main script imports shared chunks (the bank view is split out); read those too.
+const chunks = await Promise.all([...main.matchAll(/from"(\.\/[^"]+\.js)"/g)].map(async (m) => (await fetch(new URL(m[1], scriptUrl))).text()));
+const bundle = [main, ...chunks].join("\n");
 check("App built in API mode", bundle.includes("/api/v1") && bundle.includes("/customer/moneymap"));
+
+// Launch checklist: public files, metadata, 404, headers, bot protection, anonymous visit counting.
+for (const [file, type] of [["robots.txt", "text/plain"], ["sitemap.xml", "xml"], ["og-image.png", "image/png"], ["site.webmanifest", ""], ["apple-touch-icon.png", "image/png"]]) {
+  const r = await fetch(`${BASE}/${file}`);
+  check(`Serves ${file}`, r.ok && (r.headers.get("content-type") ?? "").includes(type));
+}
+check("Social preview tags", html.includes('property="og:image"') && html.includes('name="twitter:card"'));
+check("Page description", /<meta name="description" content="[^"]{50,}/.test(html));
+const missing = await fetch(`${BASE}/no-such-page`);
+check("Unknown page → custom 404", missing.status === 404 && (await missing.text()).includes("This page isn't on the map"));
+check("Security headers on the app", (page.headers.get("content-security-policy") ?? "").includes("frame-ancestors 'none'") && page.headers.get("x-content-type-options") === "nosniff");
+check("HTTP redirects to HTTPS", BASE.startsWith("http://localhost") || (await fetch(BASE.replace("https://", "http://") + "/", { redirect: "manual" })).status === 301);
+const noPuzzle = await api("POST", "/demo/session", { customer_id: "CUST_SARAH", preload: true });
+const challenge = (await api("GET", "/demo/challenge")).json;
+check("Bot protection on sign-in", challenge?.bits > 0 ? noPuzzle.status === 403 : true, `${challenge?.bits ?? 0} bits`);
+check("Anonymous visit counting", (await api("POST", "/analytics/pageview", { path: "/" })).status === 204);
 check("API docs page", (await fetch(`${BASE}/docs/json`)).ok);
 check("Product catalogue", (await api("GET", "/products")).json?.length === 6);
 

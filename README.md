@@ -37,6 +37,8 @@ npm run smoke -- https://…   # quick API-level check of a deployed site (15 ch
 npm run build:embed        # single-page build for embedded viewers → dist-embed/moneymap.html
 ```
 
+The launch checklist (security and website items, each with its status) is in [`docs/LAUNCH_CHECKLIST.md`](docs/LAUNCH_CHECKLIST.md).
+
 Security controls, the demo vs. production modes, and how MoneyMap meets the Nigeria Data Protection Act are in [`docs/SECURITY.md`](docs/SECURITY.md).
 
 How MoneyMap connects to Zenith's systems (sign-in, core banking, messaging, product requests), and how to switch each from demo to live, is in [`docs/INTEGRATION.md`](docs/INTEGRATION.md).

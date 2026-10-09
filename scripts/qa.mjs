@@ -71,8 +71,8 @@ try {
   await waitForServer();
   const browser = await chromium.launch(launchOpts);
 
-  async function session(name, viewport, fn) {
-    const ctx = await browser.newContext({ viewport });
+  async function session(name, viewport, fn, contextOptions = {}) {
+    const ctx = await browser.newContext({ viewport, ...contextOptions });
     const page = await ctx.newPage();
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
@@ -92,6 +92,8 @@ try {
   const go = async (page, path) => {
     await page.goto(BASE + path);
     await page.waitForTimeout(250);
+    // Pages loaded on demand (bank view, legal pages) show "Loading…" for a moment first.
+    await page.waitForFunction(() => !document.body.innerText.includes("Loading…"), null, { timeout: 10000 }).catch(() => undefined);
   };
   const healthy = async (page, label) => {
     const text = await page.locator("#root").innerText();
@@ -284,6 +286,39 @@ try {
       check(`My money page keeps answers (${size})`, (await page.getByLabel("Fixed monthly income", { exact: true }).inputValue()) === "300,000");
       await healthy(page, `My money (${size})`);
     });
+
+    // 3e. Accessibility: colour contrast and other serious issues (axe-core) on every key screen.
+    await session(`Accessibility (${size})`, viewport, async (page) => {
+      // Audit the settled page, as people who turn off animations see it.
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      const audit = async (label) => {
+        await page.addScriptTag({ path: "node_modules/axe-core/axe.min.js" });
+        const r = await page.evaluate(async () => {
+          // eslint-disable-next-line no-undef
+          const res = await axe.run(document, { resultTypes: ["violations"] });
+          return res.violations
+            .filter((v) => v.impact === "serious" || v.impact === "critical")
+            .map((v) => `${v.id} (${v.nodes.length}): ${v.nodes.slice(0, 2).map((n) => n.target.join(" ")).join(" | ")}`);
+        });
+        check(`No serious accessibility issues: ${label} (${size})`, r.length === 0, r.join(" ; "));
+      };
+      const HEADINGS = { "/privacy": "How MoneyMap uses your information", "/terms": "Using MoneyMap", "/nowhere": "This page isn't on the map." };
+      for (const [path, label] of [["/", "landing"], ["/privacy", "privacy"], ["/terms", "terms"], ["/nowhere", "not found"]]) {
+        await go(page, path);
+        if (HEADINGS[path]) check(`${label} page content (${size})`, await page.getByRole("heading", { level: 1, name: HEADINGS[path] }).isVisible());
+        await audit(label);
+      }
+      await go(page, "/");
+      await page.getByRole("navigation", { name: "Legal" }).getByRole("link", { name: "Privacy policy" }).click();
+      await page.getByRole("heading", { level: 1, name: HEADINGS["/privacy"] }).waitFor({ timeout: 5000 });
+      check(`Footer link to privacy works (${size})`, (await page.title()).startsWith("Privacy policy"));
+      await demoLoad(page, "Sarah");
+      for (const [path, label] of [["/app", "dashboard"], ["/app/map", "map"], ["/app/recommendation", "recommendation"], ["/app/recommendation/why", "why"], ["/app/products", "products"], ["/app/goals", "goals"], ["/app/my-money", "my money"], ["/app/inbox", "messages"], ["/app/activity", "activity"], ["/app/settings", "settings"], ["/admin", "bank view"], ["/admin/integrations", "integrations"]]) {
+        await go(page, path);
+        await page.waitForTimeout(400);
+        await audit(label);
+      }
+    }, { bypassCSP: true }); // the audit tool is injected as a script; the app's own CSP would rightly block it
 
     // 4. Tolu: no match, then a new goal changes the answer.
     await session(`No-match customer (${size})`, viewport, async (page) => {

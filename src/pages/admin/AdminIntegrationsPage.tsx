@@ -106,7 +106,7 @@ export function AdminIntegrationsPage() {
       </section>
 
       {API_MODE && status && (
-        <section className="card overflow-x-auto p-5 md:p-6" aria-labelledby="deliveries-title">
+        <section tabIndex={0} className="card overflow-x-auto p-5 md:p-6 focus:outline-none focus-visible:ring-3 focus-visible:ring-blue/40" aria-labelledby="deliveries-title">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 id="deliveries-title" className="flex items-center gap-2 !text-[20px]"><Building2 size={20} aria-hidden /> Message deliveries</h2>
             <Button

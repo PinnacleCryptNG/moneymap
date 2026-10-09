@@ -21,6 +21,7 @@ const app = await buildApp(db, {
   trustProxy: process.env.MONEYMAP_TRUST_PROXY === "1",
 });
 console.log(`mode: ${security.mode}`);
+if (!process.env.MONEYMAP_DATA_KEY && !process.env.MONEYMAP_SECRET) console.warn("warning: using the local development encryption key — set MONEYMAP_SECRET or MONEYMAP_DATA_KEY");
 for (const a of [adapters.identity, adapters.coreBanking, adapters.notifications, adapters.applications]) {
   console.log(`adapter ${a.name}: ${a.health.mode}${a.health.target ? ` → ${a.health.target}` : ""}`);
 }
@@ -28,8 +29,11 @@ for (const a of [adapters.identity, adapters.coreBanking, adapters.notifications
 const dist = resolve(process.env.MONEYMAP_DIST ?? "dist");
 if (existsSync(dist)) {
   await app.register(fastifyStatic, { root: dist, wildcard: false });
+  // The app uses hash routes (/#/app/...), so any other path is a genuine "not found".
   app.setNotFoundHandler((req, reply) =>
-    req.url.startsWith("/api/") ? reply.code(404).send({ error: "not_found", message: "No such endpoint." }) : reply.sendFile("index.html"),
+    req.url.startsWith("/api/")
+      ? reply.code(404).send({ error: "not_found", message: "No such endpoint." })
+      : reply.code(404).type("text/html").sendFile("404.html"),
   );
 }
 

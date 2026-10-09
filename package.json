@@ -17,7 +17,8 @@
     "build:server-app": "tsc -b && VITE_API_MODE=http vite build",
     "typecheck:server": "tsc --noEmit -p server",
     "smoke": "node scripts/smoke.mjs",
-    "mock:zenith": "node --disable-warning=ExperimentalWarning --import tsx server/mockZenith.ts"
+    "mock:zenith": "node --disable-warning=ExperimentalWarning --import tsx server/mockZenith.ts",
+    "links": "node scripts/check-links.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.1",
@@ -31,11 +32,13 @@
     "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.2.17",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.6.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "axe-core": "^4.10.2",
     "playwright": "^1.56.1",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",

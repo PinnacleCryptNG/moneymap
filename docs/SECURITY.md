@@ -28,6 +28,10 @@ The public Render demo runs in demo mode on purpose, so judges can switch custom
 | Data used without permission | Consent enforced twice: data is removed before the engine sees it, and every signal checks its permission. Triggers ignore income without `income_patterns`. | `server/consent.ts`, `src/engine/context.ts` |
 | Forged or replayed bank webhooks | HMAC-SHA256 over timestamp and raw body, compared in constant time; 5-minute window; `external_id` makes duplicates harmless. | `server/app.ts` |
 | Malformed or malicious input | JSON Schema on every body and query; unknown fields rejected; no type coercion; 64 KB body limit; bank statement lines validated before use. | `server/app.ts`, `server/adapters/coreBanking.ts` |
+| Bots opening sessions in bulk | Proof-of-work puzzle on demo sign-in and bank-view demo login: the browser finds a SHA-256 nonce (14 bits by default, under a second), and a script pays for every session. Challenges are signed, expire after 2 minutes and work once (`MONEYMAP_POW_BITS`; 0 turns it off). | `server/pow.ts` |
+| Data read straight from the database file | Field-level AES-256-GCM encryption of bank narrations, the customer's own answers, message text, goal names, signal evidence, reasons and stored explanations. Each value is bound to its table and column. Key from `MONEYMAP_DATA_KEY`, or derived from `MONEYMAP_SECRET`. A test checks that no amounts, merchants or employers appear in the raw tables. | `server/fieldCrypto.ts` |
+| A query forgets its customer filter | On PostgreSQL, row-level security makes the database itself refuse other customers' rows. Tested on real Postgres (PGlite). SQLite has no RLS, so there every query is scoped in code. | `db/postgres/rls.sql`, `server/__tests__/rls.test.ts` |
+| Over-sharing in responses | Engine responses send products as short references (id, name, category); the app fills in the public catalogue it already holds. | `server/app.ts` (`slimResult`) |
 | Brute force and floods | Per-IP limits: 60/min on sign-in, 1,200/min on everything else (`MONEYMAP_RATE_LIMIT_AUTH`, `MONEYMAP_RATE_LIMIT`). Returns `429` with `Retry-After`. Client IP is taken from the load balancer only when `MONEYMAP_TRUST_PROXY=1`. | `server/security.ts` |
 | Script injection or clickjacking in the app | Content Security Policy (own scripts only, Google Fonts for type, `frame-ancestors 'none'`); `X-Frame-Options: DENY`; `nosniff`; `Referrer-Policy: no-referrer`; a strict `Permissions-Policy`. React escapes all rendered text. | `server/security.ts` |
 | Financial data cached on shared devices or proxies | `Cache-Control: no-store` on every API response | `server/security.ts` |
@@ -52,7 +56,7 @@ The public Render demo runs in demo mode on purpose, so judges can switch custom
 ## Production checklist (outside this codebase)
 
 - TLS everywhere. Mutual TLS or client-credentials tokens to Zenith systems. Secrets in the bank's vault, rotated.
-- PostgreSQL with encryption at rest, point-in-time recovery and row-level access by service role. The schema ports directly.
+- PostgreSQL with disk encryption and point-in-time recovery. Apply `db/postgres/schema.sql`, then `db/postgres/rls.sql`, and connect as `moneymap_app`. Amounts are stored as plain numbers for calculation, so disk-level encryption covers them.
 - A shared rate-limit and cache store (for example Redis) when running more than one instance.
 - Retention schedule: delete derived data N months after the customer leaves, or when consent lapses.
 - A Data Protection Impact Assessment and a model-risk review of the scoring weights before launch.

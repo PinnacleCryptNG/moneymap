@@ -11,9 +11,10 @@ import { decideOnTrigger, detectTrigger, simulatedCredit } from "../src/engine/t
 import { GOAL_LIMITS } from "../src/utils/goals";
 import { DEMO_TODAY } from "../src/data/ledgers";
 import { categorise, describe } from "../src/engine/ledger";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createAdapters, type Adapters } from "./adapters";
 import { issueToken, type Session } from "./auth";
+import { powGuard, type PowSolution } from "./pow";
 import { applySecurityHeaders, DEFAULT_SECURITY, rateLimiter, type SecurityConfig } from "./security";
 import { publicProfile, redactProfile } from "./consent";
 import { PERMISSION_KEYS, type Db } from "./db";
@@ -77,6 +78,7 @@ export async function buildApp(
   const adapters = opts.adapters ?? createAdapters();
   const security = opts.security ?? DEFAULT_SECURITY;
   const DEMO = security.mode === "demo";
+  const pow = powGuard(randomBytes(32).toString("hex"), security.powBits ?? 0);
 
   applySecurityHeaders(app, security);
   if (security.rateLimits) {
@@ -181,8 +183,24 @@ export async function buildApp(
   app.get("/api/v1/health", { schema: { hide: true } }, async () => ({ status: "ok", audit: db.verifyAudit() }));
 
   // ---------------- Demo & auth ----------------
+  const powProp = { type: "object", required: ["challenge", "nonce"], additionalProperties: false, properties: { challenge: { type: "string", maxLength: 200 }, nonce: { type: "string", maxLength: 20 } } };
+
   if (DEMO) {
-    app.post<{ Body: { customer_id: string; preload?: boolean } }>(
+    app.get(
+      "/api/v1/demo/challenge",
+      {
+        schema: {
+          tags: ["Demo & auth"],
+          summary: "Bot protection: a puzzle to solve before signing in",
+          description: "Find a nonce so that SHA-256(challenge + ':' + nonce) starts with `bits` zero bits, then send {challenge, nonce} as `pow`. bits = 0 means no puzzle is required.",
+        },
+      },
+      async () => pow.issue(),
+    );
+  }
+
+  if (DEMO) {
+    app.post<{ Body: { customer_id: string; preload?: boolean; pow?: PowSolution } }>(
       "/api/v1/demo/session",
       {
         schema: {
@@ -193,11 +211,13 @@ export async function buildApp(
             type: "object",
             required: ["customer_id"],
             additionalProperties: false,
-            properties: { customer_id: { type: "string" }, preload: { type: "boolean" } },
+            properties: { customer_id: { type: "string" }, preload: { type: "boolean" }, pow: powProp },
           },
         },
       },
       async (req, reply) => {
+        const botCheck = pow.check(req.body.pow);
+        if (botCheck) return fail(reply, 403, "bot_check", botCheck);
         const c = db.getCustomer(req.body.customer_id);
         if (!c) return fail(reply, 404, "not_found", "No such demo customer.");
         db.resetCustomer(c.id);
@@ -213,16 +233,20 @@ export async function buildApp(
   }
 
   if (DEMO) {
-    app.post<{ Body: { role: "admin" } }>(
+    app.post<{ Body: { role: "admin"; pow?: PowSolution } }>(
       "/api/v1/auth/demo-login",
       {
         schema: {
           tags: ["Demo & auth"],
           summary: "Get a bank-admin token (demo)",
-          body: { type: "object", required: ["role"], additionalProperties: false, properties: { role: { type: "string", enum: ["admin"] } } },
+          body: { type: "object", required: ["role"], additionalProperties: false, properties: { role: { type: "string", enum: ["admin"] }, pow: powProp } },
         },
       },
-      async () => ({ token: issueToken("zenith-admin", "admin") }),
+      async (req, reply) => {
+        const botCheck = pow.check(req.body.pow);
+        if (botCheck) return fail(reply, 403, "bot_check", botCheck);
+        return { token: issueToken("zenith-admin", "admin") };
+      },
     );
   }
 
@@ -269,7 +293,7 @@ export async function buildApp(
         ...secured,
       },
     },
-    async (req) => evaluate(req.session!.sub, req.query.requested_more === "true"),
+    async (req) => slimResult(evaluate(req.session!.sub, req.query.requested_more === "true")),
   );
 
   app.get<{ Querystring: { limit?: string } }>(
@@ -384,6 +408,29 @@ export async function buildApp(
     { preHandler: customerOnly, schema: { tags: ["Goals"], summary: "Delete a goal", ...secured } },
     async (req, reply) => (db.deleteGoal(req.session!.sub, req.params.id) ? reply.code(204).send() : fail(reply, 404, "not_found", "Goal not found.")),
   );
+
+  // ---------------- Anonymous visit counts ----------------
+  app.post<{ Body: { path: "/" | "/privacy" | "/terms" } }>(
+    "/api/v1/analytics/pageview",
+    {
+      schema: {
+        tags: ["Bank (admin)"],
+        summary: "Count a visit to a public page (anonymous)",
+        description: "Public pages only. No cookies, IP addresses or identifiers are stored — just a daily count per page. The app sends nothing under Do Not Track or Global Privacy Control.",
+        body: { type: "object", required: ["path"], additionalProperties: false, properties: { path: { type: "string", enum: ["/", "/privacy", "/terms"] } } },
+      },
+    },
+    async (req, reply) => {
+      if (req.headers.dnt === "1" || req.headers["sec-gpc"] === "1") return reply.code(204).send();
+      db.countPageView(req.body.path);
+      return reply.code(204).send();
+    },
+  );
+
+  app.get("/api/v1/admin/analytics", { preHandler: adminOnly, schema: { tags: ["Bank (admin)"], summary: "Anonymous public-page visits, last 30 days", ...secured } }, async () => {
+    const rows = db.pageViews(30);
+    return { days: 30, total: rows.reduce((a, r) => a + r.count, 0), by_page: ["/", "/privacy", "/terms"].map((p) => ({ path: p, visits: rows.filter((r) => r.path === p).reduce((a, r) => a + r.count, 0) })), daily: rows };
+  });
 
   // ---------------- The customer's own answers ----------------
   const NAIRA = { type: "integer", minimum: 0, maximum: 100_000_000_000 };
@@ -754,7 +801,7 @@ export async function buildApp(
       return {
         recommendation: record,
         decision: toApiResponse(result, record?.id ?? "", id),
-        engine: result,
+        engine: slimResult(result),
       };
     },
   );
@@ -997,3 +1044,15 @@ function rangeError(r: Omit<SelfReport, "updatedAt">): string | null {
   ];
   return all.some((a) => a.kind === "range" && a.min >= a.max) ? "In a range, the first amount must be lower than the second." : null;
 }
+
+/**
+ * Responses carry only what the screens need. Each evaluated product is sent as a short reference —
+ * the app already holds the full public catalogue (GET /products) and fills the details back in.
+ */
+function slimResult(r: EngineResult): EngineResult {
+  const slim = (e: EngineResult["ranked"][number]) =>
+    ({ ...e, product: { product_id: e.product.product_id, name: e.product.name, category: e.product.category, status: e.product.status, version: e.product.version } }) as typeof e;
+  const ranked = r.ranked.map(slim);
+  return { ...r, ranked, top: r.top ? ranked.find((e) => e.product.product_id === r.top!.product.product_id)! : null };
+}
+

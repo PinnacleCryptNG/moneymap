@@ -39,7 +39,7 @@ export function AdminAuditPage() {
         </p>
       )}
       {error && <p role="alert" className="mb-4 text-small text-red">Couldn't load the server audit log: {error}</p>}
-      <section className="card overflow-x-auto p-5 md:p-6">
+      <section tabIndex={0} aria-label="Audit log entries" className="card overflow-x-auto p-5 md:p-6 focus:outline-none focus-visible:ring-3 focus-visible:ring-blue/40">
         {entries.length === 0 ? (
           <p className="text-navy-500">No events yet.</p>
         ) : (

@@ -6,6 +6,7 @@ import { DemoPersonaList } from "../../components/navigation/DemoMode";
 import { Button, ButtonLink } from "../../components/shared/Button";
 import { Logo } from "../../components/shared/Logo";
 import { Modal } from "../../components/shared/Modal";
+import { SiteFooter } from "../legal/LegalLayout";
 
 const STAGES = [
   { icon: Search, title: "Understand", body: "Builds your financial picture from only the data you allow." },
@@ -99,6 +100,7 @@ export function LandingPage() {
           </div>
         </section>
       </main>
+      <SiteFooter dark />
 
       <Modal open={howOpen} onClose={() => setHowOpen(false)} title="How MoneyMap decides">
         <ol className="flex flex-col gap-4">
@@ -127,7 +129,7 @@ function Flow({ label, steps, muted = false }: { label: string; steps: string[];
       <ol className="flex flex-wrap items-center gap-1.5">
         {steps.map((s, i) => (
           <li key={s} className="flex items-center gap-1.5">
-            <span className={`rounded-full px-3 py-1 text-small font-medium ${muted ? "border border-mist bg-white text-navy-500" : i === steps.length - 1 ? "bg-green text-white" : "bg-blue-50 text-blue-600"}`}>{s}</span>
+            <span className={`rounded-full px-3 py-1 text-small font-medium ${muted ? "border border-mist bg-white text-navy-500" : i === steps.length - 1 ? "bg-green-700 text-white" : "bg-blue-50 text-blue-600"}`}>{s}</span>
             {i < steps.length - 1 && <ArrowRight size={14} className="text-navy-500" aria-hidden />}
           </li>
         ))}

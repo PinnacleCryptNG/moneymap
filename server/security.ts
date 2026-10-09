@@ -13,6 +13,8 @@ export interface SecurityConfig {
   corsOrigins: string[];
   /** Requests per minute per client IP: sign-in/session endpoints, and everything else. False disables (tests). */
   rateLimits: { auth: number; general: number } | false;
+  /** Bot protection on demo sign-in: proof-of-work difficulty in bits (0 = off). */
+  powBits: number;
 }
 
 export function securityConfigFromEnv(env: NodeJS.ProcessEnv = process.env): SecurityConfig {
@@ -30,10 +32,12 @@ export function securityConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Sec
       auth: Number(env.MONEYMAP_RATE_LIMIT_AUTH ?? 60),
       general: Number(env.MONEYMAP_RATE_LIMIT ?? 1200),
     },
+    // About 16,000 hashes on average: well under a second in a browser.
+    powBits: Math.max(0, Math.min(24, Number(env.MONEYMAP_POW_BITS ?? 14))),
   };
 }
 
-export const DEFAULT_SECURITY: SecurityConfig = { mode: "demo", corsOrigins: [], rateLimits: false };
+export const DEFAULT_SECURITY: SecurityConfig = { mode: "demo", corsOrigins: [], rateLimits: false, powBits: 0 };
 
 /** The app shell's Content Security Policy: own scripts only, Google Fonts for type, no framing. */
 const APP_CSP = [

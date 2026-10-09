@@ -49,12 +49,20 @@ export class HttpError extends Error {
   }
 }
 
+/** Bot protection: fetch the server's puzzle and solve it (skipped when the server doesn't ask for one). */
+async function botCheck(): Promise<{ challenge: string; nonce: string } | undefined> {
+  const { challenge, bits } = await call<{ challenge: string; bits: number }>("GET", "/demo/challenge", undefined, "none");
+  if (!bits) return undefined;
+  const { solvePow } = await import("./pow");
+  return { challenge, nonce: await solvePow(challenge, bits) };
+}
+
 async function call<T>(method: string, path: string, body?: unknown, as: "customer" | "admin" | "none" = "customer"): Promise<T> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["content-type"] = "application/json";
   if (as === "admin") {
     if (!adminToken) {
-      const r = await call<{ token: string }>("POST", "/auth/demo-login", { role: "admin" }, "none");
+      const r = await call<{ token: string }>("POST", "/auth/demo-login", { role: "admin", pow: await botCheck() }, "none");
       adminToken = r.token;
       write(ADMIN_KEY, adminToken);
     }
@@ -137,7 +145,7 @@ export const http = {
   hasSession: () => Boolean(token),
 
   async startSession(customerId: string, preload: boolean) {
-    const r = await call<{ token: string }>("POST", "/demo/session", { customer_id: customerId, preload }, "none");
+    const r = await call<{ token: string }>("POST", "/demo/session", { customer_id: customerId, preload, pow: await botCheck() }, "none");
     token = r.token;
     write(TOKEN_KEY, token);
   },
@@ -210,6 +218,7 @@ export const http = {
       integrity: { intact: boolean; entries: number; brokenAt: number | null };
       entries: { seq: number; at: string; actor: string; action: string; detail: string; hash: string }[];
     }>("GET", "/admin/audit", undefined, "admin"),
+  adminAnalytics: () => call<{ total: number; by_page: { path: string; visits: number }[] }>("GET", "/admin/analytics", undefined, "admin"),
   adminIntegrations: () => call<IntegrationStatus>("GET", "/admin/integrations", undefined, "admin"),
   adminRetry: () => call<{ delivered: number; handed_off: number }>("POST", "/admin/integrations/retry", {}, "admin"),
   setProductStatus: (productId: string, status: Product["status"]) => call("PATCH", `/admin/products/${productId}`, { status }, "admin"),

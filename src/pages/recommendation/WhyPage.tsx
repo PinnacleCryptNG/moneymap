@@ -125,7 +125,7 @@ export function WhyPage() {
         </div>
       </section>
 
-      <section className="card overflow-x-auto p-5 md:p-6" aria-labelledby="score-title">
+      <section tabIndex={0} className="card overflow-x-auto p-5 md:p-6 focus:outline-none focus-visible:ring-3 focus-visible:ring-blue/40" aria-labelledby="score-title">
         <h2 id="score-title" className="mb-1 !text-[18px] !leading-7">How the {top.score}% match was calculated</h2>
         <p className="mb-4 text-small text-navy-500">Not a mysterious AI percentage — a weighted score you can check. Prototype weights; production weights would be validated and governed.</p>
         <table className="w-full min-w-[480px] text-small">

@@ -99,7 +99,7 @@ Interactive docs (OpenAPI / Swagger) are at **`/docs`** on the running server.
 
 | Area | Endpoints |
 |---|---|
-| Demo & auth | `POST /demo/session` (customer, optional preload), `POST /auth/demo-login` (bank admin), `GET /demo/customers`, `POST /demo/reset` |
+| Demo & auth | `GET /demo/challenge` (bot-protection puzzle), `POST /demo/session` (customer, optional preload), `POST /auth/demo-login` (bank admin), `GET /demo/customers`, `POST /demo/reset` |
 | Customer | `GET /customer/profile`, `GET /customer/financial-context`, `GET /customer/moneymap` (screen preview, issues nothing), `GET /customer/transactions` (categorised statement, consent-filtered), `GET /customer/signals` |
 | Consent | `GET /consent`, `POST /consent` |
 | Goals | `GET /goals`, `POST /goals`, `PATCH /goals/:id`, `DELETE /goals/:id` |
@@ -110,6 +110,7 @@ Interactive docs (OpenAPI / Swagger) are at **`/docs`** on the running server.
 | Your money | `GET /customer/self-report`, `PUT /customer/self-report` |
 | Data rights | `GET /customer/data-export`, `DELETE /customer/data` — see [SECURITY.md](SECURITY.md) |
 | Integrations | `GET /admin/integrations`, `POST /admin/integrations/retry`, `GET /customer/statement-sync` — see [INTEGRATION.md](INTEGRATION.md) |
+| Public | `POST /analytics/pageview` (anonymous daily count for public pages), `GET /admin/analytics` |
 | Bank (admin) | `GET /admin/metrics`, `GET /admin/recommendations`, `GET /admin/audit`, `GET /admin/events`, `GET /admin/model-versions`, `PATCH /admin/products/:id` |
 
 All paths are under `/api/v1`. Request bodies are schema-validated and unknown fields are rejected. Errors come back as `{ "error", "message" }`.

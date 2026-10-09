@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../app/providers/store";
 import { runEngine, toRecord, type EngineInput, type EngineResult } from "../engine";
-import type { RecommendationRecord } from "../types";
+import type { Product, RecommendationRecord } from "../types";
 import { postRecommendations } from "./api";
+
+/** The server sends products as short references; put the catalogue's full details back. */
+export function withCatalogue(r: EngineResult, products: Product[]): EngineResult {
+  const full = (e: EngineResult["ranked"][number]) => ({ ...e, product: products.find((p) => p.product_id === e.product.product_id) ?? e.product });
+  const ranked = r.ranked.map(full);
+  return { ...r, ranked, top: r.top ? (ranked.find((e) => e.product.product_id === r.top!.product.product_id) ?? null) : null };
+}
 import { API_MODE, http } from "./http";
 
 export function useEngineInput(requestedMore = false): EngineInput {
@@ -52,7 +59,7 @@ function useServerPreview(requestedMore: boolean, input: EngineInput): EngineRes
     let cancelled = false;
     synced()
       .then(() => http.preview(requestedMore))
-      .then((r) => !cancelled && setResult(r))
+      .then((r) => !cancelled && setResult(withCatalogue(r, input.products)))
       .catch((e: Error) => !cancelled && dispatch({ type: "sync_error", message: `Couldn't load your MoneyMap from the server: ${e.message}` }));
     return () => {
       cancelled = true;
@@ -103,7 +110,7 @@ export function useRecommendation(requestedMore = false) {
         // Wait for queued writes (e.g. feedback just given) so the server decides on current data.
         (state.simulateError ? Promise.reject(new Error("Connection interrupted")) : synced().then(() => http.recommend(requestedMore))).then(async (res) => {
           dispatch({ type: "hydrate", snapshot: await http.snapshot() });
-          return res.engine;
+          return withCatalogue(res.engine, input.products);
         })
       : postRecommendations({ ...input, history: recordsRef.current }, { simulateError: state.simulateError }).then((r) => {
           const record = toRecord(r, customer.id);

@@ -1,6 +1,7 @@
 // Persistence for the MoneyMap API — SQLite via Node's built-in `node:sqlite` (no native deps).
 // The schema mirrors the PRD's entity list and is written to port to PostgreSQL unchanged in spirit.
 import { createHash, randomUUID } from "node:crypto";
+import { fieldCipher, type FieldCipher } from "./fieldCrypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -65,6 +66,12 @@ CREATE TABLE IF NOT EXISTS trigger_events (
   reason TEXT NOT NULL,
   notification_id TEXT,
   created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS page_views (
+  day TEXT NOT NULL,
+  path TEXT NOT NULL,
+  count INTEGER NOT NULL,
+  PRIMARY KEY (day, path)
 );
 CREATE TABLE IF NOT EXISTS self_reports (
   customer_id TEXT PRIMARY KEY REFERENCES customers(id),
@@ -271,7 +278,9 @@ interface RecommendationRow {
   created_at: string;
 }
 
-function toRecommendation(r: RecommendationRow): RecommendationRecord {
+type Open = (stored: string, where: string) => string;
+
+function toRecommendation(r: RecommendationRow, open: Open): RecommendationRecord {
   return {
     id: r.id,
     customer_id: r.customer_id,
@@ -281,7 +290,7 @@ function toRecommendation(r: RecommendationRow): RecommendationRecord {
     need: r.need as RecommendationRecord["need"],
     match_score: r.match_score,
     reasons: JSON.parse(r.reasons_json),
-    timing_reason: r.timing_reason,
+    timing_reason: open(r.timing_reason, "recommendations.timing_reason"),
     eligibility_status: r.eligibility_status as RecommendationRecord["eligibility_status"],
     model_version: r.model_version,
     status: r.status as RecommendationStatus,
@@ -305,11 +314,11 @@ interface GoalRow {
   created_at: string;
 }
 
-function toGoal(r: GoalRow): FinancialGoal & { active: boolean } {
+function toGoal(r: GoalRow, open: Open): FinancialGoal & { active: boolean } {
   return {
     id: r.id,
     type: r.type as FinancialGoal["type"],
-    label: r.label,
+    label: open(r.label, "goals.label"),
     amount: r.amount,
     timelineMonths: r.timeline_months,
     saved: r.saved,
@@ -319,7 +328,7 @@ function toGoal(r: GoalRow): FinancialGoal & { active: boolean } {
   };
 }
 
-export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
+export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db", cipher: FieldCipher = fieldCipher()) {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
   db.exec("PRAGMA foreign_keys = ON;");
@@ -399,7 +408,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
               tr.id,
               c.id,
               tr.date,
-              tr.narration,
+              cipher.seal(tr.narration, "transactions.narration"),
               tr.amount,
               tr.direction,
               tr.channel,
@@ -496,7 +505,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
     const row: RawTransaction = { ...t, id: externalId ? `LIVE_X_${externalId}` : id("LIVE") };
     if (externalId && db.prepare("SELECT 1 FROM transactions WHERE id = ?").get(row.id)) return null;
     db.prepare("INSERT INTO transactions (id, customer_id, date, narration, amount, direction, channel) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
-      row.id, customerId, row.date, row.narration, row.amount, row.direction, row.channel,
+      row.id, customerId, row.date, cipher.seal(row.narration, "transactions.narration"), row.amount, row.direction, row.channel,
     );
     return row;
   }
@@ -514,28 +523,38 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
     tx(() => {
       db.prepare(
         "INSERT INTO trigger_events (id, customer_id, transaction_id, type, amount, description, outcome, reason, notification_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      ).run(eventId, customerId, transactionId, trigger.type, trigger.amount, trigger.description, decision.outcome, decision.reason, n?.id ?? null, t);
+      ).run(eventId, customerId, transactionId, trigger.type, trigger.amount, cipher.seal(trigger.description, "trigger_events.description"), decision.outcome, decision.reason, n?.id ?? null, t);
       if (n)
         db.prepare(
           "INSERT INTO notifications (id, customer_id, event_id, kind, title, body, product_id, product_name, recommendation_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ).run(n.id, customerId, eventId, n.kind, n.title, n.body, n.product_id, n.product_name, n.recommendation_id ?? null, t);
+        ).run(n.id, customerId, eventId, n.kind, n.title, cipher.seal(n.body, "notifications.body"), n.product_id, n.product_name, n.recommendation_id ?? null, t);
     });
     // No amounts or narrations in the audit log: it records what MoneyMap decided, not the customer's finances.
     audit("system", `trigger.${decision.outcome}`, `${customerId}: ${trigger.type}${n ? ` → ${n.product_name} (${n.kind})` : ""}`);
     return { event: listTriggerEvents(customerId).find((e) => e.id === eventId)!, notification: n };
   }
 
+  // ---- Anonymous visit counts: a daily tally per public page, nothing about the visitor ----
+  function countPageView(path: string) {
+    db.prepare("INSERT INTO page_views (day, path, count) VALUES (?, ?, 1) ON CONFLICT(day, path) DO UPDATE SET count = count + 1").run(now().slice(0, 10), path);
+  }
+
+  function pageViews(days = 30) {
+    const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+    return db.prepare("SELECT day, path, count FROM page_views WHERE day >= ? ORDER BY day DESC, path").all(since) as { day: string; path: string; count: number }[];
+  }
+
   // ---- The customer's own answers about their money ----
   function getSelfReport(customerId: string): SelfReport | null {
     const row = db.prepare("SELECT json FROM self_reports WHERE customer_id = ?").get(customerId) as { json: string } | undefined;
-    return row ? (JSON.parse(row.json) as SelfReport) : null;
+    return row ? (JSON.parse(cipher.open(row.json, "self_reports.json")) as SelfReport) : null;
   }
 
   function setSelfReport(customerId: string, r: Omit<SelfReport, "updatedAt">): SelfReport {
     const saved: SelfReport = { ...r, updatedAt: now() };
     db.prepare(
       "INSERT INTO self_reports (customer_id, json, updated_at) VALUES (?, ?, ?) ON CONFLICT(customer_id) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at",
-    ).run(customerId, JSON.stringify(saved), saved.updatedAt);
+    ).run(customerId, cipher.seal(JSON.stringify(saved), "self_reports.json"), saved.updatedAt);
     // Which questions were answered, never the amounts.
     const answered = [r.accounts.length && "accounts", r.fixedIncome && "fixed income", r.variableIncome.length && "variable income", r.expenses.mode !== "unsure" && "expenses"].filter(Boolean);
     audit("customer", "self_report.updated", `${customerId}: ${answered.join(", ") || "nothing"}`);
@@ -550,7 +569,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
       for (const t of lines) {
         added += Number(db
           .prepare("INSERT OR IGNORE INTO transactions (id, customer_id, date, narration, amount, direction, channel) VALUES (?, ?, ?, ?, ?, ?, ?)")
-          .run(`BANK_${t.id}`, customerId, t.date, t.narration, t.amount, t.direction, t.channel).changes);
+          .run(`BANK_${t.id}`, customerId, t.date, cipher.seal(t.narration, "transactions.narration"), t.amount, t.direction, t.channel).changes);
       }
     });
     return added;
@@ -626,7 +645,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
       transaction_id: String(r.transaction_id),
       type: r.type as TriggerEvent["type"],
       amount: Number(r.amount),
-      description: String(r.description),
+      description: cipher.open(String(r.description), "trigger_events.description"),
       outcome: r.outcome as TriggerEvent["outcome"],
       reason: String(r.reason),
       ...(r.notification_id ? { notification_id: String(r.notification_id) } : {}),
@@ -646,7 +665,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
         event_id: String(r.event_id),
         kind: r.kind as AppNotification["kind"],
         title: String(r.title),
-        body: String(r.body),
+        body: cipher.open(String(r.body), "notifications.body"),
         product_id: String(r.product_id),
         product_name: String(r.product_name),
         ...(r.recommendation_id ? { recommendation_id: String(r.recommendation_id) } : {}),
@@ -662,7 +681,9 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
 
   // ---- Customers ----
   function getTransactions(customerId: string): RawTransaction[] {
-    return db.prepare("SELECT id, date, narration, amount, direction, channel FROM transactions WHERE customer_id = ? ORDER BY date, id").all(customerId) as unknown as RawTransaction[];
+    return (db.prepare("SELECT id, date, narration, amount, direction, channel FROM transactions WHERE customer_id = ? ORDER BY date, id").all(customerId) as unknown as RawTransaction[]).map(
+      (t) => ({ ...t, narration: cipher.open(t.narration, "transactions.narration") }),
+    );
   }
 
   // Only current demo customers are served, even if an older database still holds retired ones.
@@ -720,7 +741,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
 
   // ---- Goals ----
   function listGoals(customerId: string) {
-    return (db.prepare("SELECT * FROM goals WHERE customer_id = ? ORDER BY created_at DESC").all(customerId) as unknown as GoalRow[]).map(toGoal);
+    return (db.prepare("SELECT * FROM goals WHERE customer_id = ? ORDER BY created_at DESC").all(customerId) as unknown as GoalRow[]).map((r) => toGoal(r, cipher.open));
   }
 
   function activeGoal(customerId: string): FinancialGoal | null {
@@ -734,7 +755,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
       if (makeActive) db.prepare("UPDATE goals SET active = 0 WHERE customer_id = ?").run(customerId);
       db.prepare(
         "INSERT INTO goals (id, customer_id, type, label, amount, timeline_months, saved, expense_kind, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      ).run(goalId, customerId, g.type, g.label, g.amount, g.timelineMonths, g.saved ?? 0, g.expenseKind ?? null, makeActive ? 1 : 0, now());
+      ).run(goalId, customerId, g.type, cipher.seal(g.label, "goals.label"), g.amount, g.timelineMonths, g.saved ?? 0, g.expenseKind ?? null, makeActive ? 1 : 0, now());
     });
     audit("customer", "goal.created", `${customerId}: ${g.type}`);
     return listGoals(customerId).find((x) => x.id === goalId)!;
@@ -748,7 +769,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
       if (patch.active) db.prepare("UPDATE goals SET active = 0 WHERE customer_id = ?").run(customerId);
       db.prepare(
         "UPDATE goals SET type = ?, label = ?, amount = ?, timeline_months = ?, saved = ?, expense_kind = ?, active = ? WHERE id = ? AND customer_id = ?",
-      ).run(next.type, next.label, next.amount, next.timelineMonths, next.saved, next.expenseKind ?? null, next.active ? 1 : 0, goalId, customerId);
+      ).run(next.type, cipher.seal(next.label, "goals.label"), next.amount, next.timelineMonths, next.saved, next.expenseKind ?? null, next.active ? 1 : 0, goalId, customerId);
     });
     audit("customer", "goal.updated", `${customerId}: ${next.type}`);
     return listGoals(customerId).find((g) => g.id === goalId)!;
@@ -809,7 +830,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
     const rows = customerId
       ? db.prepare("SELECT * FROM recommendations WHERE customer_id = ? ORDER BY created_at DESC").all(customerId)
       : db.prepare("SELECT * FROM recommendations ORDER BY created_at DESC").all();
-    return (rows as unknown as RecommendationRow[]).map(toRecommendation);
+    return (rows as unknown as RecommendationRow[]).map((r) => toRecommendation(r, cipher.open));
   }
 
   function getRecommendationRow(recId: string) {
@@ -820,9 +841,9 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
     const row = getRecommendationRow(recId);
     if (!row) return null;
     return {
-      record: toRecommendation(row),
-      explanation: JSON.parse(row.explanation_json),
-      trace: JSON.parse(row.trace_json),
+      record: toRecommendation(row, cipher.open),
+      explanation: JSON.parse(cipher.open(row.explanation_json, "recommendations.explanation_json")),
+      trace: JSON.parse(cipher.open(row.trace_json, "recommendations.trace_json")),
       factors: JSON.parse(row.factors_json),
     };
   }
@@ -846,16 +867,16 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
       rec.need,
       rec.match_score,
       JSON.stringify(rec.reasons),
-      rec.timing_reason,
+      cipher.seal(rec.timing_reason, "recommendations.timing_reason"),
       rec.eligibility_status,
       rec.model_version,
-      JSON.stringify(snapshot.explanation),
-      JSON.stringify(snapshot.trace),
+      cipher.seal(JSON.stringify(snapshot.explanation), "recommendations.explanation_json"),
+      cipher.seal(JSON.stringify(snapshot.trace), "recommendations.trace_json"),
       JSON.stringify(snapshot.factors),
       now(),
     );
     snapshot.explanation.influences.forEach((r, i) =>
-      db.prepare("INSERT INTO recommendation_reasons (recommendation_id, position, reason_key, label, detail) VALUES (?, ?, ?, ?, ?)").run(recId, i, r.key, r.label, r.detail),
+      db.prepare("INSERT INTO recommendation_reasons (recommendation_id, position, reason_key, label, detail) VALUES (?, ?, ?, ?, ?)").run(recId, i, r.key, r.label, cipher.seal(r.detail, "recommendation_reasons.detail")),
     );
     });
     audit("system", "recommendation.issued", `${rec.customer_id}: ${rec.product_name} (match ${rec.match_score}, need ${rec.need ?? "—"}, ${rec.model_version})`);
@@ -946,11 +967,11 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
   }
 
   function recommendationReasons(recId: string) {
-    return db.prepare("SELECT reason_key, label, detail FROM recommendation_reasons WHERE recommendation_id = ? ORDER BY position").all(recId) as {
+    return (db.prepare("SELECT reason_key, label, detail FROM recommendation_reasons WHERE recommendation_id = ? ORDER BY position").all(recId) as {
       reason_key: string;
       label: string;
       detail: string;
-    }[];
+    }[]).map((r) => ({ ...r, detail: cipher.open(r.detail, "recommendation_reasons.detail") }));
   }
 
   // ---- Financial profile & signals (only what the customer permitted) ----
@@ -991,7 +1012,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
           customerId,
           s.signal,
           s.strength,
-          s.evidence,
+          cipher.seal(s.evidence, "transaction_signals.evidence"),
           s.source,
           t,
         );
@@ -1004,7 +1025,13 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
   }
 
   function getSignals(customerId: string) {
-    return db.prepare("SELECT signal, strength, evidence, source_permission, computed_at FROM transaction_signals WHERE customer_id = ? ORDER BY signal").all(customerId);
+    return (db.prepare("SELECT signal, strength, evidence, source_permission, computed_at FROM transaction_signals WHERE customer_id = ? ORDER BY signal").all(customerId) as {
+      signal: string;
+      strength: number;
+      evidence: string;
+      source_permission: string;
+      computed_at: string;
+    }[]).map((r) => ({ ...r, evidence: cipher.open(r.evidence, "transaction_signals.evidence") }));
   }
 
   function productEligibility(productId: string) {
@@ -1062,6 +1089,8 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
     listCustomers,
     eraseCustomer,
     getSelfReport,
+    countPageView,
+    pageViews,
     setSelfReport,
     addTransaction,
     mergeStatement,

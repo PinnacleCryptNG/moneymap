@@ -1,0 +1,7 @@
+# Only the public landing page is meant for search engines. Customer screens are private.
+User-agent: *
+Allow: /$
+Disallow: /api/
+Disallow: /docs
+
+Sitemap: https://moneymap-kuld.onrender.com/sitemap.xml
