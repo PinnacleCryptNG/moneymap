@@ -1,0 +1,104 @@
+{
+  "fps": 30,
+  "bpm": 120,
+  "barFrames": 60,
+  "totalBars": 20,
+  "note": "Single source of timing for visuals AND sound. Scene 'at' values are frames from the scene's first frame. Screen coordinates are in the 390x844 phone screen.",
+  "scenes": [
+    {
+      "id": "cover", "startBar": 0, "bars": 2,
+      "camera": [[0, 1, 195, 422], [119, 1.02, 195, 422]],
+      "events": []
+    },
+    {
+      "id": "goal", "startBar": 2, "bars": 3,
+      "caption": { "n": "01", "label": "Your goal", "headline": "Start with what you want", "line": "Products come after the need." },
+      "camera": [[0, 1, 195, 422], [14, 1.22, 195, 313], [34, 1.22, 195, 360], [48, 1.42, 195, 408], [90, 1.42, 195, 408], [102, 1.36, 195, 498], [122, 1.3, 195, 590], [142, 1.22, 195, 655], [166, 1, 195, 422]],
+      "events": [
+        { "at": 20, "type": "tap", "x": 195, "y": 313 },
+        { "at": 46, "type": "tap", "x": 195, "y": 408 },
+        { "at": 54, "type": "type", "char": "1" },
+        { "at": 59, "type": "type", "char": "0" },
+        { "at": 63, "type": "type", "char": "0" },
+        { "at": 68, "type": "type", "char": "0" },
+        { "at": 72, "type": "type", "char": "0" },
+        { "at": 77, "type": "type", "char": "0" },
+        { "at": 81, "type": "type", "char": "0" },
+        { "at": 96, "type": "tap", "x": 195, "y": 498 },
+        { "at": 103, "type": "type", "char": "1", "field": "months" },
+        { "at": 108, "type": "type", "char": "2", "field": "months" },
+        { "at": 118, "type": "pop" },
+        { "at": 140, "type": "tap", "x": 195, "y": 655 }
+      ]
+    },
+    {
+      "id": "permissions", "startBar": 5, "bars": 2,
+      "caption": { "n": "02", "label": "Your permission", "headline": "You decide what it sees", "line": "Turn anything off, any time." },
+      "camera": [[0, 1, 195, 422], [14, 1.35, 209, 252], [26, 1.35, 209, 252], [36, 1.16, 250, 470], [64, 1.16, 250, 470], [74, 1.26, 195, 736], [94, 1.22, 195, 808], [112, 1, 195, 422]],
+      "events": [
+        { "at": 22, "type": "tap", "x": 209, "y": 252 },
+        { "at": 30, "type": "toggle", "row": 0 },
+        { "at": 36, "type": "toggle", "row": 1 },
+        { "at": 42, "type": "toggle", "row": 2 },
+        { "at": 48, "type": "toggle", "row": 3 },
+        { "at": 54, "type": "toggle", "row": 4 },
+        { "at": 72, "type": "pop" },
+        { "at": 92, "type": "tap", "x": 195, "y": 808 }
+      ]
+    },
+    {
+      "id": "reading", "startBar": 7, "bars": 3,
+      "caption": { "n": "03", "label": "Reads your statement", "headline": "Real lines, not forms", "line": "Income, bills and what's left over." },
+      "camera": [[0, 1, 195, 422], [10, 1.3, 195, 330], [66, 1.3, 195, 340], [82, 1.48, 150, 512], [124, 1.42, 150, 512], [134, 1.2, 195, 620], [150, 1.18, 195, 688], [170, 1, 195, 422]],
+      "events": [
+        { "at": 12, "type": "pop", "line": 0 },
+        { "at": 22, "type": "pop", "line": 1 },
+        { "at": 32, "type": "pop", "line": 2 },
+        { "at": 42, "type": "pop", "line": 3 },
+        { "at": 52, "type": "pop", "line": 4 },
+        { "at": 80, "type": "rise", "dur": 38 },
+        { "at": 118, "type": "chime" },
+        { "at": 152, "type": "tap", "x": 195, "y": 688 }
+      ]
+    },
+    {
+      "id": "match", "startBar": 10, "bars": 3,
+      "caption": { "n": "04", "label": "One right move", "headline": "The product that helps", "line": "With the reason in plain words." },
+      "camera": [[0, 1, 195, 422], [12, 1.2, 195, 140], [32, 1.42, 290, 330], [86, 1.42, 290, 330], [104, 1.3, 195, 520], [132, 1.3, 195, 600], [150, 1.28, 195, 610], [168, 1, 195, 422]],
+      "events": [
+        { "at": 8, "type": "pop" },
+        { "at": 34, "type": "rise", "dur": 44 },
+        { "at": 82, "type": "chime" },
+        { "at": 100, "type": "pop" },
+        { "at": 134, "type": "pop" }
+      ]
+    },
+    {
+      "id": "notify", "startBar": 13, "bars": 2,
+      "caption": { "n": "05", "label": "Perfect timing", "headline": "Speaks up on payday", "line": "At most once a week." },
+      "camera": [[0, 1.04, 195, 422], [16, 1, 195, 422], [32, 1.45, 195, 120], [78, 1.45, 195, 120], [98, 1.1, 195, 300], [112, 1, 195, 422]],
+      "events": [
+        { "at": 18, "type": "buzz" },
+        { "at": 24, "type": "notify" },
+        { "at": 82, "type": "tap", "x": 195, "y": 112 }
+      ]
+    },
+    {
+      "id": "route", "startBar": 15, "bars": 3,
+      "caption": { "n": "06", "label": "Your route", "headline": "See exactly when you'll get there", "line": "Before interest — Zenith sets the rates." },
+      "camera": [[0, 1.04, 195, 422], [10, 1.28, 195, 360], [46, 1.32, 195, 600], [122, 1.32, 220, 600], [134, 1.36, 195, 210], [160, 1.3, 195, 210], [174, 1, 195, 422]],
+      "events": [
+        { "at": 54, "type": "drag", "x": 182, "y": 587, "x2": 340, "y2": 587, "dur": 62 },
+        { "at": 132, "type": "chime" }
+      ]
+    },
+    {
+      "id": "close", "startBar": 18, "bars": 2,
+      "camera": [[0, 1, 195, 422]],
+      "events": [
+        { "at": 8, "type": "pop" },
+        { "at": 30, "type": "pop" }
+      ]
+    }
+  ]
+}
