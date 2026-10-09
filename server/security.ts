@@ -28,7 +28,7 @@ export function securityConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Sec
     corsOrigins: (env.MONEYMAP_CORS_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean),
     rateLimits: {
       auth: Number(env.MONEYMAP_RATE_LIMIT_AUTH ?? 60),
-      general: Number(env.MONEYMAP_RATE_LIMIT ?? 600),
+      general: Number(env.MONEYMAP_RATE_LIMIT ?? 1200),
     },
   };
 }

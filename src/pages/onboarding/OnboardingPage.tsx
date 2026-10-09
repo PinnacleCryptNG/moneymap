@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useStore } from "../../app/providers/store";
 import { summaryTiles } from "../../components/cards/FinancialSnapshot";
+import { answeredAnything, draftFrom, MoneyQuestions, readDraft, saveMoneyAnswers } from "../../components/forms/MoneyQuestions";
 import { PermissionToggle } from "../../components/forms/PermissionToggle";
 import { Button } from "../../components/shared/Button";
 import { Input, Select } from "../../components/shared/Field";
@@ -14,7 +15,7 @@ import type { ExpenseKind, GoalDraft, GoalType, Permissions } from "../../types"
 import { formatNaira } from "../../utils/format";
 import { EXPENSE_KINDS, GOAL_META, GOAL_ORDER, goalInputError } from "../../utils/labels";
 
-const STEPS = ["Your goal", "Permissions", "Your map"];
+const STEPS = ["Your goal", "Your money", "Permissions", "Your map"];
 
 export function OnboardingPage() {
   const { state, customer, dispatch } = useStore();
@@ -27,6 +28,9 @@ export function OnboardingPage() {
   const [months, setMonths] = useState(String(def?.timelineMonths ?? 12));
   const [expenseKind, setExpenseKind] = useState<ExpenseKind>(def?.expenseKind ?? "rent");
   const [attempted, setAttempted] = useState(false);
+  const [money, setMoney] = useState(() => draftFrom(state.selfReport));
+  const [moneyErrors, setMoneyErrors] = useState<string[]>([]);
+  const answers = useMemo(() => readDraft(money), [money]);
   const [permissions, setPermissions] = useState<Permissions>({
     account_activity: false,
     income_patterns: false,
@@ -60,12 +64,14 @@ export function OnboardingPage() {
         preferences: state.preferences,
         products: state.products,
         history: [],
+        selfReport: answeredAnything(answers.report, answers.goals) ? { ...answers.report, updatedAt: "" } : null,
       }),
-    [customer, permissions, goal, state.preferences, state.products],
+    [customer, permissions, goal, state.preferences, state.products, answers],
   );
 
   const finish = (to: string) => {
     dispatch({ type: "complete_onboarding", permissions, goal });
+    if (answeredAnything(answers.report, answers.goals)) saveMoneyAnswers(dispatch, answers, Boolean(goal));
     navigate(to);
   };
 
@@ -160,6 +166,45 @@ export function OnboardingPage() {
         )}
 
         {step === 1 && (
+          <section className="fade-up" aria-labelledby="money-title">
+            <h1 id="money-title" className="mb-2">Tell us about your money</h1>
+            <p className="mb-6 text-navy-500">
+              Optional. Answer what you can — ranges and “I'm not sure” are fine. MoneyMap uses your answers wherever you don't share your Zenith account, and always says when a figure came from you.
+            </p>
+            <MoneyQuestions draft={money} onChange={setMoney} existingGoals={goal ? [{ label: goal.label }] : []} />
+            {moneyErrors.length > 0 && (
+              <ul role="alert" className="mt-4 flex list-disc flex-col gap-1 rounded-[12px] border border-[#f4cccc] bg-red-50 p-4 pl-8 text-small text-red">
+                {moneyErrors.map((e) => <li key={e}>{e}</li>)}
+              </ul>
+            )}
+            <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+              <Button variant="tertiary" onClick={() => setStep(0)} icon={<ArrowLeft size={20} aria-hidden />}>Back</Button>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setMoney(draftFrom(null));
+                    setMoneyErrors([]);
+                    setStep(2);
+                  }}
+                >
+                  Skip this
+                </Button>
+                <Button
+                  onClick={() => {
+                    setMoneyErrors(answers.errors);
+                    if (!answers.errors.length) setStep(2);
+                  }}
+                  iconRight={<ArrowRight size={20} aria-hidden />}
+                >
+                  Continue
+                </Button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {step === 2 && (
           <section className="fade-up" aria-labelledby="consent-title">
             <h1 id="consent-title" className="mb-2">Choose what MoneyMap can use</h1>
             <p className="mb-2 text-body-lg text-navy-700">Let MoneyMap understand your financial habits.</p>
@@ -195,24 +240,24 @@ export function OnboardingPage() {
               </ul>
             </div>
             <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
-              <Button variant="tertiary" onClick={() => setStep(0)} icon={<ArrowLeft size={20} aria-hidden />}>Back</Button>
+              <Button variant="tertiary" onClick={() => setStep(1)} icon={<ArrowLeft size={20} aria-hidden />}>Back</Button>
               <div className="flex flex-wrap gap-3">
                 <Button
                   variant="secondary"
                   onClick={() => {
                     setPermissions({ account_activity: false, income_patterns: false, spending_patterns: false, existing_products: false, financial_goals: false });
-                    setStep(2);
+                    setStep(3);
                   }}
                 >
                   Skip for now
                 </Button>
-                <Button onClick={() => setStep(2)} iconRight={<ArrowRight size={20} aria-hidden />}>Continue</Button>
+                <Button onClick={() => setStep(3)} iconRight={<ArrowRight size={20} aria-hidden />}>Continue</Button>
               </div>
             </div>
           </section>
         )}
 
-        {step === 2 && (
+        {step === 3 && (
           <section className="fade-up" aria-labelledby="ready-title">
             <h1 id="ready-title" className="mb-6">Your financial map is ready</h1>
             {(() => {
@@ -260,7 +305,7 @@ export function OnboardingPage() {
             )}
 
             <div className="mt-6 flex flex-wrap justify-between gap-3">
-              <Button variant="tertiary" onClick={() => setStep(1)} icon={<ArrowLeft size={20} aria-hidden />}>Back</Button>
+              <Button variant="tertiary" onClick={() => setStep(2)} icon={<ArrowLeft size={20} aria-hidden />}>Back</Button>
               <Button variant="ghost" onClick={() => finish("/app")}>Go to my MoneyMap</Button>
             </div>
           </section>

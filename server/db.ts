@@ -25,6 +25,7 @@ import type {
   RecommendationRecord,
   RecommendationStatus,
   AppNotification,
+  SelfReport,
   Trigger,
   TriggerEvent,
 } from "../src/types";
@@ -64,6 +65,11 @@ CREATE TABLE IF NOT EXISTS trigger_events (
   reason TEXT NOT NULL,
   notification_id TEXT,
   created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS self_reports (
+  customer_id TEXT PRIMARY KEY REFERENCES customers(id),
+  json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS deliveries (
   notification_id TEXT PRIMARY KEY,
@@ -452,6 +458,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
   function resetCustomer(customerId: string) {
     tx(() => {
       db.prepare("DELETE FROM recommendation_feedback WHERE customer_id = ?").run(customerId);
+      db.prepare("DELETE FROM self_reports WHERE customer_id = ?").run(customerId);
       db.prepare("DELETE FROM deliveries WHERE customer_id = ?").run(customerId);
       db.prepare("DELETE FROM notifications WHERE customer_id = ?").run(customerId);
       db.prepare("DELETE FROM trigger_events WHERE customer_id = ?").run(customerId);
@@ -473,7 +480,7 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
 
   function resetAll() {
     tx(() => {
-      for (const t of ["deliveries", "statement_syncs", "notifications", "trigger_events", "recommendation_feedback", "recommendation_reasons", "product_interactions", "transaction_signals", "financial_profiles", "product_eligibility", "model_versions", "recommendations", "applications", "transactions", "goals", "consent_events", "consents", "preferences", "product_versions", "products", "customers", "audit_log"]) {
+      for (const t of ["self_reports", "deliveries", "statement_syncs", "notifications", "trigger_events", "recommendation_feedback", "recommendation_reasons", "product_interactions", "transaction_signals", "financial_profiles", "product_eligibility", "model_versions", "recommendations", "applications", "transactions", "goals", "consent_events", "consents", "preferences", "product_versions", "products", "customers", "audit_log"]) {
         db.exec(`DELETE FROM ${t}`);
       }
     });
@@ -516,6 +523,23 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
     // No amounts or narrations in the audit log: it records what MoneyMap decided, not the customer's finances.
     audit("system", `trigger.${decision.outcome}`, `${customerId}: ${trigger.type}${n ? ` → ${n.product_name} (${n.kind})` : ""}`);
     return { event: listTriggerEvents(customerId).find((e) => e.id === eventId)!, notification: n };
+  }
+
+  // ---- The customer's own answers about their money ----
+  function getSelfReport(customerId: string): SelfReport | null {
+    const row = db.prepare("SELECT json FROM self_reports WHERE customer_id = ?").get(customerId) as { json: string } | undefined;
+    return row ? (JSON.parse(row.json) as SelfReport) : null;
+  }
+
+  function setSelfReport(customerId: string, r: Omit<SelfReport, "updatedAt">): SelfReport {
+    const saved: SelfReport = { ...r, updatedAt: now() };
+    db.prepare(
+      "INSERT INTO self_reports (customer_id, json, updated_at) VALUES (?, ?, ?) ON CONFLICT(customer_id) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at",
+    ).run(customerId, JSON.stringify(saved), saved.updatedAt);
+    // Which questions were answered, never the amounts.
+    const answered = [r.accounts.length && "accounts", r.fixedIncome && "fixed income", r.variableIncome.length && "variable income", r.expenses.mode !== "unsure" && "expenses"].filter(Boolean);
+    audit("customer", "self_report.updated", `${customerId}: ${answered.join(", ") || "nothing"}`);
+    return saved;
   }
 
   // ---- Statement sync and message delivery (step 4) ----
@@ -1037,6 +1061,8 @@ export function openDb(path = process.env.MONEYMAP_DB ?? "data/moneymap.db") {
     getCustomer,
     listCustomers,
     eraseCustomer,
+    getSelfReport,
+    setSelfReport,
     addTransaction,
     mergeStatement,
     recordSync,

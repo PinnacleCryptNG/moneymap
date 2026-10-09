@@ -54,7 +54,7 @@ const server = REMOTE
       stdio: "ignore",
       detached: true,
       // QA opens many demo sessions in quick succession; lift the per-IP sign-in limit for this local run only.
-      env: { ...process.env, PORT: String(PORT), MONEYMAP_DB: ":memory:", NODE_ENV: "test", MONEYMAP_RATE_LIMIT_AUTH: "1000" },
+      env: { ...process.env, PORT: String(PORT), MONEYMAP_DB: ":memory:", NODE_ENV: "test", MONEYMAP_RATE_LIMIT_AUTH: "1000", MONEYMAP_RATE_LIMIT: "100000" },
     })
   : spawn("npx", ["vite", "preview", "--port", String(PORT), "--strictPort"], { stdio: "ignore", detached: true });
 // Kill the whole process group (npx spawns children) so the port is free for the next run.
@@ -124,6 +124,30 @@ try {
       await page.getByLabel("Timeline (months)").fill("500");
       check(`Goal validation: long timeline (${size})`, await page.getByText(/120 months/).isVisible());
       await page.getByLabel("Timeline (months)").fill("12");
+      await page.getByRole("button", { name: "Continue" }).click();
+
+      // "Your money": exact amounts, ranges, "not sure", goals and variable income.
+      check(`Money questions shown (${size})`, await page.getByRole("heading", { name: "Tell us about your money" }).isVisible());
+      await page.getByLabel("Personal account").check();
+      await page.getByLabel("Personal account", { exact: true }).last().fill("120000");
+      await page.getByRole("button", { name: /₦100,000 for school fees/ }).click();
+      await page.getByRole("radiogroup", { name: "Do you have a fixed monthly income?" }).getByRole("radio", { name: "Yes" }).click();
+      await page.getByLabel("Fixed monthly income", { exact: true }).fill("450000");
+      await page.getByRole("radiogroup", { name: "Do you have income that changes from month to month?" }).getByRole("radio", { name: "Yes" }).click();
+      await page.getByLabel("Name this income").fill("Hair business");
+      await page.getByLabel("Hair business — from").fill("150000");
+      await page.getByLabel("Hair business — to").fill("50000");
+      await page.getByRole("radio", { name: "Break it down" }).click();
+      await page.getByRole("radiogroup", { name: "Food: how would you like to answer?" }).getByRole("radio", { name: "Range" }).click();
+      await page.getByLabel("Food — from").fill("60000");
+      await page.getByLabel("Food — to").fill("80000");
+      await page.getByLabel("Rent", { exact: true }).fill("50000");
+      await page.getByRole("radiogroup", { name: "Electricity: how would you like to answer?" }).getByRole("radio", { name: "I'm not sure" }).click();
+      await page.getByRole("button", { name: "Continue" }).click();
+      check(`Money validation: backwards range caught (${size})`, await page.getByText(/Hair business: the first amount should be lower/).isVisible());
+      await page.getByLabel("Hair business — from").fill("50000");
+      await page.getByLabel("Hair business — to").fill("150000");
+      await healthy(page, `Money questions (${size})`);
       await page.getByRole("button", { name: "Continue" }).click();
       check(`Consent: promise shown (${size})`, await page.getByText("Our promise").isVisible());
       await page.getByRole("button", { name: "Allow all" }).click();
@@ -233,6 +257,34 @@ try {
       check(`After erasure, onboarding starts again (${size})`, /#\/onboarding/.test(page.url()));
     });
 
+    // 3d. Answers stand in for a statement the customer doesn't share.
+    await session(`Answers without sharing (${size})`, viewport, async (page) => {
+      await go(page, "/");
+      await page.getByRole("button", { name: "Open Demo Mode" }).click();
+      await page.getByRole("dialog").locator("li").filter({ hasText: "Tolu" }).getByRole("button", { name: "Walk through onboarding" }).click();
+      await page.getByRole("radio", { name: /Save more/ }).check({ force: true });
+      await page.getByLabel("Target amount").fill("500000");
+      await page.getByLabel("Timeline (months)").fill("10");
+      await page.getByRole("button", { name: "Continue" }).click();
+      await page.getByRole("radiogroup", { name: "Do you have a fixed monthly income?" }).getByRole("radio", { name: "Yes" }).click();
+      await page.getByLabel("Fixed monthly income", { exact: true }).fill("300000");
+      await page.getByRole("radio", { name: "One total" }).click();
+      await page.getByRole("radiogroup", { name: "Total monthly expenses: how would you like to answer?" }).getByRole("radio", { name: "Range" }).click();
+      await page.getByLabel("Total monthly expenses — from").fill("150000");
+      await page.getByLabel("Total monthly expenses — to").fill("200000");
+      await page.getByRole("button", { name: "Continue" }).click();
+      await page.getByRole("button", { name: "Skip for now" }).click();
+      check(`Map preview uses answers (${size})`, (await page.locator("dd").filter({ hasText: "Stable" }).count()) > 0);
+      await page.getByRole("button", { name: "Go to my MoneyMap" }).click();
+      await go(page, "/app/map");
+      check(`Map: "What you told us" (${size})`, await page.getByRole("heading", { name: "What you told us" }).isVisible());
+      check(`Map: income marked as from answers (${size})`, await page.getByText("from what you told us").first().isVisible());
+      check(`Map: signal source is your answers (${size})`, (await page.getByText("Source: What you told us").count()) > 0);
+      await go(page, "/app/my-money");
+      check(`My money page keeps answers (${size})`, (await page.getByLabel("Fixed monthly income", { exact: true }).inputValue()) === "300,000");
+      await healthy(page, `My money (${size})`);
+    });
+
     // 4. Tolu: no match, then a new goal changes the answer.
     await session(`No-match customer (${size})`, viewport, async (page) => {
       await demoLoad(page, "Tolu");
@@ -271,6 +323,7 @@ try {
       await go(page, "/");
       await page.getByRole("button", { name: "Build my MoneyMap" }).click();
       await page.getByRole("button", { name: "Continue" }).click();
+      await page.getByRole("button", { name: "Skip this" }).click();
       await page.getByRole("button", { name: "Skip for now" }).click();
       check(`Skip for now → no forced match (${size})`, await page.getByText("Nothing needs your attention.").isVisible());
     });

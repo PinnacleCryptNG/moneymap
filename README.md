@@ -45,6 +45,22 @@ The API is described in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and is br
 
 `npm run qa` drives every core path at phone and desktop sizes: onboarding with invalid input, recommendation, Why?, product action, feedback, dismissal, both demo customers, a goal change, consent withdrawal, "skip for now", the error and empty states, and the bank view. It fails on any broken screen, JavaScript error or sideways scroll. If Playwright can't find a browser, set `PW_CHROMIUM` to a Chromium executable.
 
+## Your money, in your own words
+
+Onboarding includes an optional **Your money** step, and the app has a **My money** page to edit it later. Customers can tell MoneyMap:
+
+- how much is in each type of account they have — personal, business, savings, investment — at Zenith or any other bank;
+- their savings goals, as many as they like, with one-tap suggestions such as ₦100,000 for school fees or ₦200,000 for a new phone;
+- their fixed monthly income;
+- income that changes month to month, such as a business, each with its own name;
+- their monthly expenses, as one total or broken down (food, rent, electricity and so on).
+
+Every amount can be exact, a range (₦10,000–₦20,000) or "I'm not sure".
+
+MoneyMap uses these answers only where the customer hasn't shared that part of their Zenith statement, and every explanation that relies on them says "you told us". The statement always wins when it's shared.
+
+For planning, a range counts as both its low and high ends across the months. Low income is paired with high spending, so the plan never assumes the best case. "Not sure" is never treated as zero. Only personal and savings balances count as money available day to day.
+
 ## Continuous integration
 
 Every push and pull request runs `.github/workflows/ci.yml`: app and server type checks, all unit, API, integration and security tests, a production dependency audit, and the full browser QA against both the browser-only build and the server (API) build.

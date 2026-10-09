@@ -173,6 +173,8 @@ export interface CustomerProfile {
   transactions: Transaction[];
   /** How the figures above were derived from the raw ledger. */
   derivation?: Derivation;
+  /** Which figures came from the customer's own answers instead of their statement. */
+  reported?: { income: boolean; spending: boolean; balance: boolean };
   defaultGoal?: GoalDraft;
 }
 
@@ -347,4 +349,22 @@ export interface AppNotification {
   recommendation_id?: string;
   created_at: string;
   read_at?: string;
+}
+
+// ---------------- Self-reported money (questionnaire) ----------------
+
+/** A money answer: an exact figure, a range ("₦10,000–₦20,000"), or "I'm not sure". */
+export type Amount = { kind: "exact"; value: number } | { kind: "range"; min: number; max: number } | { kind: "unsure" };
+
+export type AccountKind = "personal" | "business" | "savings" | "investment";
+
+/** What the customer told MoneyMap about their money, in their own words. */
+export interface SelfReport {
+  accounts: { kind: AccountKind; amount: Amount }[];
+  /** null = no fixed monthly income. */
+  fixedIncome: Amount | null;
+  /** Income that changes month to month, each with the customer's own title (e.g. "Fashion business"). */
+  variableIncome: { title: string; amount: Amount }[];
+  expenses: { mode: "total"; total: Amount } | { mode: "itemised"; items: { category: string; amount: Amount }[] } | { mode: "unsure" };
+  updatedAt: string;
 }

@@ -384,3 +384,46 @@ describe("data rights (step 5)", () => {
     expect(text).not.toMatch(/450000|900000|₦|BRIGHTPATH|Brightpath/);
   });
 });
+
+describe("the customer's own answers", () => {
+  const answers = {
+    accounts: [{ kind: "personal", amount: { kind: "exact", value: 120000 } }],
+    fixedIncome: { kind: "exact", value: 300000 },
+    variableIncome: [{ title: "Hair business", amount: { kind: "range", min: 50000, max: 150000 } }],
+    expenses: { mode: "itemised", items: [{ category: "Food", amount: { kind: "range", min: 60000, max: 80000 } }, { category: "Rent", amount: { kind: "unsure" } }] },
+  };
+
+  it("are saved, used where the statement isn't shared, exported and erased", async () => {
+    const h = await session("CUST_TOLU", false);
+    await app.inject({ method: "POST", url: "/api/v1/consent", headers: h, payload: { financial_goals: true } });
+    const put = await app.inject({ method: "PUT", url: "/api/v1/customer/self-report", headers: h, payload: answers });
+    expect(put.statusCode).toBe(200);
+    expect(put.json().updatedAt).toBeTruthy();
+    const ctx = (await app.inject({ method: "GET", url: "/api/v1/customer/financial-context", headers: h })).json();
+    expect(ctx.context.income.average).toBe(400000);
+    expect(ctx.context.signals.some((s: { source: string }) => s.source === "self_reported")).toBe(true);
+    expect((await app.inject({ method: "GET", url: "/api/v1/customer/data-export", headers: h })).json().your_answers.fixedIncome.value).toBe(300000);
+    await app.inject({ method: "DELETE", url: "/api/v1/customer/data", headers: h });
+    expect((await app.inject({ method: "GET", url: "/api/v1/customer/self-report", headers: h })).json()).toBeNull();
+  });
+
+  it("rejects malformed answers: backwards ranges, negative amounts, unknown fields", async () => {
+    const h = await session("CUST_TOLU", false);
+    for (const bad of [
+      { ...answers, fixedIncome: { kind: "range", min: 200000, max: 100000 } },
+      { ...answers, fixedIncome: { kind: "exact", value: -5 } },
+      { ...answers, accounts: [{ kind: "crypto", amount: { kind: "unsure" } }] },
+      { ...answers, extra: true },
+    ]) {
+      expect((await app.inject({ method: "PUT", url: "/api/v1/customer/self-report", headers: h, payload: bad })).statusCode).toBe(400);
+    }
+  });
+
+  it("never put amounts in the audit log", async () => {
+    const h = await session("CUST_TOLU", false);
+    await app.inject({ method: "PUT", url: "/api/v1/customer/self-report", headers: h, payload: answers });
+    const audit = (await app.inject({ method: "GET", url: "/api/v1/admin/audit", headers: await admin() })).json();
+    const entry = audit.entries.find((e: { action: string }) => e.action === "self_report.updated");
+    expect(entry.detail).toBe("CUST_TOLU: accounts, fixed income, variable income, expenses");
+  });
+});

@@ -18,6 +18,7 @@ import type {
   RecommendationRecord,
   RawTransaction,
   RecommendationStatus,
+  SelfReport,
   TriggerEvent,
   CustomerProfile,
 } from "../../types";
@@ -28,7 +29,7 @@ import { syncAction } from "../../services/sync";
 import { uid } from "../../utils/format";
 
 export interface AppState {
-  schema: 5;
+  schema: 6;
   customerId: string;
   onboarded: boolean;
   permissions: Permissions;
@@ -43,6 +44,8 @@ export interface AppState {
   /** Messages MoneyMap sent, and every trigger it noticed with what it decided. */
   notifications: AppNotification[];
   triggerEvents: TriggerEvent[];
+  /** What the customer told MoneyMap about their money (the "Your money" questions). */
+  selfReport: SelfReport | null;
   products: Product[];
   productVersions: Product[];
   audit: AuditEntry[];
@@ -63,7 +66,7 @@ const NO_PERMISSIONS: Permissions = {
 function customerState(customerId: string): Pick<
   AppState,
   | "customerId" | "onboarded" | "permissions" | "consentLog" | "goals" | "activeGoalId" | "preferences" | "recommendations" | "applications"
-  | "liveTransactions" | "notifications" | "triggerEvents"
+  | "liveTransactions" | "notifications" | "triggerEvents" | "selfReport"
 > {
   return {
     customerId,
@@ -78,6 +81,7 @@ function customerState(customerId: string): Pick<
     liveTransactions: [],
     notifications: [],
     triggerEvents: [],
+    selfReport: null,
   };
 }
 
@@ -89,7 +93,7 @@ function profileFor(customerId: string, live: RawTransaction[]): CustomerProfile
 
 function initialState(): AppState {
   return {
-    schema: 5,
+    schema: 6,
     ...customerState("CUST_SARAH"),
     products: SEED_PRODUCTS,
     productVersions: [],
@@ -99,14 +103,14 @@ function initialState(): AppState {
   };
 }
 
-export const STORAGE_KEY = "moneymap:v5";
+export const STORAGE_KEY = "moneymap:v6";
 
 function load(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as AppState;
-      if (parsed.schema === 5) return { ...parsed, syncError: null };
+      if (parsed.schema === 6) return { ...parsed, syncError: null };
     }
   } catch {
     /* storage unavailable — fall back to defaults */
@@ -120,7 +124,7 @@ export type Action =
   | { type: "complete_onboarding"; permissions: Permissions; goal: GoalDraft | null }
   | { type: "set_permission"; key: PermissionKey; granted: boolean }
   | { type: "withdraw_all" }
-  | { type: "upsert_goal"; goal: GoalDraft & { id?: string } }
+  | { type: "upsert_goal"; goal: GoalDraft & { id?: string }; /** false = add without replacing the active goal. */ activate?: boolean }
   | { type: "delete_goal"; id: string }
   | { type: "set_active_goal"; id: string }
   | { type: "contribute"; id: string; amount: number }
@@ -133,6 +137,7 @@ export type Action =
   | { type: "simulate_event"; event: "income" | "windfall" }
   | { type: "read_notification"; id: string }
   | { type: "erase_my_data" }
+  | { type: "set_self_report"; report: Omit<SelfReport, "updatedAt"> }
   | { type: "set_simulate_error"; value: boolean }
   | { type: "reset" }
   | { type: "hydrate"; snapshot: ServerSnapshot }
@@ -230,7 +235,7 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         goals,
-        activeGoalId: existing ? state.activeGoalId : goal.id,
+        activeGoalId: existing || (action.activate === false && state.activeGoalId) ? state.activeGoalId : goal.id,
         audit: audit(state, "customer", existing ? "goal.updated" : "goal.created", goal.type),
       };
     }
@@ -323,6 +328,12 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case "simulate_event":
       return simulateEvent(state, action.event, now);
+    case "set_self_report":
+      return {
+        ...state,
+        selfReport: { ...action.report, updatedAt: now },
+        audit: audit(state, "customer", "self_report.updated", "Answers about your money saved."),
+      };
     case "erase_my_data":
       // Right to erasure: everything MoneyMap holds for this customer goes; only the fact is audited.
       return { ...state, ...customerState(state.customerId), audit: audit(state, "customer", "customer.data_erased", state.customerId) };
@@ -366,6 +377,7 @@ function simulateEvent(state: AppState, kind: "income" | "windfall", now: string
     products: state.products,
     history: state.recommendations,
     trigger,
+    selfReport: state.selfReport,
   });
   const decision = decideOnTrigger({
     trigger,

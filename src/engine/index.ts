@@ -7,20 +7,21 @@ import type {
   FeedbackType,
   FinancialGoal,
   FinancialNeed,
-  PermissionKey,
   Permissions,
   Preferences,
   Product,
   ProductCategory,
   RecommendationRecord,
   Signal,
+  SelfReport,
   Trigger,
 } from "../types";
 import { SUBJECT_TO_ZENITH } from "../data/products";
 import { clamp, formatNaira } from "../utils/format";
-import { buildFinancialContext, type FinancialContext, hasSignal } from "./context";
+import { buildFinancialContext, type FinancialContext, hasSignal, type SignalSource } from "./context";
 import { detectNeeds, type DetectedNeed, GOAL_NEEDS, isAssetGoal, NEED_LABELS } from "./needs";
 import { EXAMPLE_TENOR_MONTHS, goalPlan, principalSpread } from "./plan";
+import { applySelfReport } from "./selfReport";
 import { triggerTimingReason } from "./triggers";
 
 export const MODEL_VERSION = "rules-v2.0-prototype";
@@ -115,7 +116,7 @@ export interface Explanation {
   timing: string;
   eligibility: string;
   nextSteps: string[];
-  dataUsed: PermissionKey[];
+  dataUsed: SignalSource[];
   estimate?: { label: string; value: string }[];
   estimateNote?: string;
 }
@@ -153,6 +154,8 @@ export interface EngineInput {
   now?: Date;
   /** An account event that prompted this run (step 3), e.g. salary landing. Only affects timing. */
   trigger?: Trigger | null;
+  /** The customer's own answers about their money; fill in what the statement doesn't show. */
+  selfReport?: SelfReport | null;
   /** The customer explicitly asked for more options (bypasses frequency caps, not hard rules). */
   requestedMore?: boolean;
 }
@@ -519,7 +522,7 @@ function contextLines(ctx: FinancialContext, used: Signal[]): string[] {
 function explain(top: Evaluation, ctx: FinancialContext): Explanation {
   const p = top.product;
   const goal = ctx.goal;
-  const dataUsed = new Set<PermissionKey>();
+  const dataUsed = new Set<SignalSource>();
   for (const s of ctx.signals) if (top.usedSignals.includes(s.signal)) dataUsed.add(s.source);
   if (goal && top.factors.goalFit >= 60) dataUsed.add("financial_goals");
   if (ctx.holdings) dataUsed.add("existing_products");
@@ -641,7 +644,7 @@ function buildTrace(
       stage: "Financial context",
       result: `${ctxParts.length ? `${ctxParts.join(" · ")} a month · ` : ""}${ctx.signals.length} signals${
         ctx.ledger && (ctx.ledger.income || ctx.ledger.spending || ctx.ledger.activity) ? ` from ${ctx.ledger.transactionCount} transactions` : ""
-      }`,
+      }${c.reported && (c.reported.income || c.reported.spending || c.reported.balance) ? " · partly from what you told us" : ""}`,
       status: ctx.signals.length ? "done" : "empty",
     },
     { stage: "Goal", result: ctx.goal ? ctx.goal.label : "No goal shared", status: ctx.goal ? "done" : "empty" },
@@ -685,7 +688,8 @@ function buildTrace(
 
 export function runEngine(input: EngineInput): EngineResult {
   const now = input.now ?? new Date();
-  const context = buildFinancialContext(input.customer, input.permissions, input.goal, input.trigger ?? null);
+  const customer = applySelfReport(input.customer, input.selfReport, input.permissions);
+  const context = buildFinancialContext(customer, input.permissions, input.goal, input.trigger ?? null);
   const needs = detectNeeds(context);
   const evaluations = input.products.map((p) => evaluateProduct(p, context, needs, input.preferences, input.history, now));
   const ranked = [...evaluations].sort(
@@ -702,7 +706,7 @@ export function runEngine(input: EngineInput): EngineResult {
       ranked,
       context,
       needs,
-      trace: buildTrace(input, context, needs, ranked, status, top),
+      trace: buildTrace({ ...input, customer }, context, needs, ranked, status, top),
       message,
       generatedAt: now.toISOString(),
       modelVersion: MODEL_VERSION,

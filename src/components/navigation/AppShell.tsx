@@ -1,4 +1,4 @@
-import { Activity, Bell, Compass, Flag, Home, LayoutGrid, Map as MapIcon, Settings, ShieldCheck, User } from "lucide-react";
+import { Activity, Bell, Compass, Wallet, Flag, Home, LayoutGrid, Map as MapIcon, Settings, ShieldCheck, User } from "lucide-react";
 import { NavLink, Navigate, Outlet, Link, useLocation } from "react-router-dom";
 import { useStore } from "../../app/providers/store";
 import { Logo } from "../shared/Logo";
@@ -8,6 +8,7 @@ const SIDE = [
   { to: "/app", label: "Overview", icon: Home, end: true },
   { to: "/app/goals", label: "My Goals", icon: Flag },
   { to: "/app/map", label: "Insights", icon: MapIcon },
+  { to: "/app/my-money", label: "My money", icon: Wallet },
   { to: "/app/products", label: "Products", icon: LayoutGrid },
   { to: "/app/activity", label: "Activity", icon: Activity },
   { to: "/app/settings", label: "Settings", icon: Settings },

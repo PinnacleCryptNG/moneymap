@@ -37,6 +37,19 @@ Consent applies to the statement as well: money-in lines need `income_patterns`,
 
 In production, step 1's input would come from a core-banking adapter instead of the `transactions` table seeded from `src/data/ledgers.ts`.
 
+## The customer's own answers (`src/engine/selfReport.ts`)
+
+Before the engine builds its context, `applySelfReport` fills in what the statement doesn't provide:
+
+| Part | Used when | Figures |
+|---|---|---|
+| Income | `income_patterns` isn't shared, or the statement shows no income | Fixed and variable income per month. Ranges alternate between their two ends across six months, so variable income reads as variable. |
+| Spending | `spending_patterns` isn't shared, or the statement shows none | Total, or the sum of itemised expenses. Ranges take their high end in the months income takes its low end. Rent, electricity, school fees and similar count as fixed commitments. |
+| Balance | `account_activity` isn't shared | Personal and savings accounts only |
+
+- "Not sure" answers are left out, never counted as zero.
+- Signals built from answers carry the source `self_reported`. Their evidence reads "You told us…", the Why page lists "What you told us", and the engine trace says "partly from what you told us".
+
 ## Event triggers (`src/engine/triggers.ts`)
 
 MoneyMap doesn't wait for the customer to open the app. When a new statement line arrives (`POST /events/transactions` from a core-banking adapter, or `POST /demo/events` in Demo Mode):
@@ -76,6 +89,7 @@ The same pure functions run in the server and in the browser-only demo.
 | ProductInteraction | `product_interactions`, `applications` | viewed / explored / eligibility_checked / requested |
 | ModelVersion | `model_versions` | Weights and thresholds for each engine version used |
 | AuditLog | `audit_log` | Hash-chained |
+| (self-reported) | `self_reports` | The customer's own answers (accounts, fixed and variable income, expenses), each amount exact, a range or unsure |
 | (step 4) | `deliveries`, `statement_syncs`; `applications.reference`, `handoff_status` | Message delivery attempts, statement refreshes, the bank's reference for each request |
 | (step 3) | `trigger_events`, `notifications` | Every trigger with its outcome and reason; messages sent to the customer |
 
@@ -93,6 +107,7 @@ Interactive docs (OpenAPI / Swagger) are at **`/docs`** on the running server.
 | Products | `GET /products`, `GET /products/:id`, `POST /products/:id/eligibility-check`, `POST /products/:id/apply`, `GET /applications` |
 | Preferences | `GET /preferences`, `PATCH /preferences` |
 | Events | `POST /events/transactions` (bank feed, admin token), `POST /demo/events` (`income` or `windfall`), `GET /events`, `GET /notifications`, `POST /notifications/:id/read` |
+| Your money | `GET /customer/self-report`, `PUT /customer/self-report` |
 | Data rights | `GET /customer/data-export`, `DELETE /customer/data` — see [SECURITY.md](SECURITY.md) |
 | Integrations | `GET /admin/integrations`, `POST /admin/integrations/retry`, `GET /customer/statement-sync` — see [INTEGRATION.md](INTEGRATION.md) |
 | Bank (admin) | `GET /admin/metrics`, `GET /admin/recommendations`, `GET /admin/audit`, `GET /admin/events`, `GET /admin/model-versions`, `PATCH /admin/products/:id` |

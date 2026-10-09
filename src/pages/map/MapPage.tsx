@@ -4,6 +4,7 @@ import { InsightCard } from "../../components/cards/InsightCard";
 import { MapJourney } from "../../components/cards/MapJourney";
 import { ButtonLink } from "../../components/shared/Button";
 import { PageHeader } from "../../components/shared/PageHeader";
+import { YourAnswers } from "../../components/cards/YourAnswers";
 import { AccountReading } from "../../components/cards/AccountReading";
 import { EnginePipeline } from "../../components/recommendations/EnginePipeline";
 import { CATEGORY_LABELS } from "../../engine/ledger";
@@ -37,7 +38,7 @@ const SIGNAL_META: Record<Signal, { title: string; icon: typeof Activity; tone: 
 };
 
 export function MapPage() {
-  const { activeGoal, customer } = useStore();
+  const { activeGoal, customer, state } = useStore();
   const result = useEngineResult();
   const { context: ctx, needs } = result;
   const plan = activeGoal ? goalPlan(activeGoal, ctx.surplus?.average ?? null) : null;
@@ -68,6 +69,8 @@ export function MapPage() {
 
       <AccountReading ctx={ctx} />
 
+      <YourAnswers report={state.selfReport} used={ctx.signals.some((sig) => sig.source === "self_reported") || Boolean(result.trace.find((t) => t.stage === "Financial context")?.result.includes("what you told us"))} />
+
       <section aria-labelledby="signals-title">
         <h2 id="signals-title" className="mb-3">What your money is telling us</h2>
         {ctx.signals.length === 0 ? (
@@ -83,7 +86,7 @@ export function MapPage() {
                   tone={m.tone}
                   title={m.title}
                   body={s.evidence}
-                  meta={<span className="text-caption !font-normal text-navy-500">Source: {PERMISSION_COPY[s.source].title} · confidence {Math.round(s.strength * 100)}%</span>}
+                  meta={<span className="text-caption !font-normal text-navy-500">Source: {s.source === "self_reported" ? "What you told us" : PERMISSION_COPY[s.source].title} · confidence {Math.round(s.strength * 100)}%</span>}
                 />
               );
             })}

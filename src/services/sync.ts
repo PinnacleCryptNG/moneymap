@@ -31,7 +31,7 @@ export async function syncAction(action: Action, prev: AppState): Promise<Server
     case "upsert_goal": {
       const existing = action.goal.id && prev.goals.find((g) => g.id === action.goal.id);
       if (existing) await http.updateGoal(existing.id, action.goal);
-      else await http.createGoal(action.goal);
+      else await http.createGoal(action.goal, action.activate !== false);
       break;
     }
     case "delete_goal":
@@ -62,6 +62,9 @@ export async function syncAction(action: Action, prev: AppState): Promise<Server
       break;
     case "simulate_event":
       await http.simulateEvent(action.event);
+      break;
+    case "set_self_report":
+      await http.putSelfReport(action.report);
       break;
     case "erase_my_data":
       await http.eraseMyData();

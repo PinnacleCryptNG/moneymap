@@ -16,8 +16,11 @@ export interface DetectedSignal {
   /** 0–1 confidence/strength of the signal. */
   strength: number;
   evidence: string;
-  source: PermissionKey;
+  /** The permission the data came from, or the customer's own answers. */
+  source: SignalSource;
 }
+
+export type SignalSource = PermissionKey | "self_reported";
 
 export interface FinancialContext {
   permissions: Permissions;
@@ -86,12 +89,14 @@ export function buildFinancialContext(
   trigger: Trigger | null = null,
 ): FinancialContext {
   const signals: DetectedSignal[] = [];
-  const add = (signal: Signal, strength: number, evidence: string, source: PermissionKey) =>
+  const add = (signal: Signal, strength: number, evidence: string, source: SignalSource) =>
     signals.push({ signal, strength: clamp(strength, 0, 1), evidence, source });
 
   // Income
+  const told = customer.reported ?? { income: false, spending: false, balance: false };
   let income: FinancialContext["income"] = null;
-  if (permissions.income_patterns) {
+  if (permissions.income_patterns || told.income) {
+    const src: SignalSource = told.income ? "self_reported" : "income_patterns";
     const avg = average(customer.monthlyIncome);
     const cv = stdDev(customer.monthlyIncome) / avg;
     const trendPct = growth(customer.monthlyIncome);
@@ -101,13 +106,20 @@ export function buildFinancialContext(
       add(
         "consistent_income",
         1 - cv / 0.16,
-        `Your income has stayed within about ${Math.max(1, Math.round(cv * 100))}% of ${formatNaira(avg)} a month for the last six months.`,
-        "income_patterns",
+        told.income
+          ? `You told us you earn about ${formatNaira(avg)} a month.`
+          : `Your income has stayed within about ${Math.max(1, Math.round(cv * 100))}% of ${formatNaira(avg)} a month for the last six months.`,
+        src,
       );
     } else if (stability === "low") {
-      add("irregular_income", Math.min(1, cv / 0.4), "Your monthly income has varied noticeably over the last six months.", "income_patterns");
+      add(
+        "irregular_income",
+        Math.min(1, cv / 0.4),
+        told.income ? "You told us part of your income changes from month to month." : "Your monthly income has varied noticeably over the last six months.",
+        src,
+      );
     }
-    if (trendPct >= 25) {
+    if (trendPct >= 25 && !told.income) {
       add(
         "income_increase",
         Math.min(1, trendPct / 80),
@@ -115,7 +127,9 @@ export function buildFinancialContext(
         "income_patterns",
       );
     }
-    if (customer.incomeSource === "salary") {
+    if (told.income) {
+      // Where it lands and when only come from the statement.
+    } else if (customer.incomeSource === "salary") {
       const d = customer.derivation?.income;
       add(
         "salary_account",
@@ -137,7 +151,7 @@ export function buildFinancialContext(
 
   // Spending
   let spending: FinancialContext["spending"] = null;
-  if (permissions.spending_patterns) {
+  if (permissions.spending_patterns || told.spending) {
     const avg = average(customer.monthlySpending);
     const ratio = income ? avg / income.average : 0.6;
     spending = {
@@ -155,28 +169,34 @@ export function buildFinancialContext(
     const ratio = avg / income.average;
     const positiveMonths = monthly.filter((m) => m > 0.1 * income!.average).length;
     surplus = { average: avg, ratio, positiveMonths };
+    const fromAnswers = told.income || told.spending;
     if (ratio >= 0.2 && positiveMonths >= 5) {
       add(
         "regular_surplus",
         Math.min(1, ratio / 0.4),
-        `After your usual spending and commitments, about ${formatNaira(avg)} is left over each month on average${
-          customer.derivation ? ` — worked out from ${customer.derivation.transactionCount} transactions` : ""
-        }.`,
-        "spending_patterns",
+        fromAnswers
+          ? `Based on what you told us, about ${formatNaira(avg)} is left over each month after your spending.`
+          : `After your usual spending and commitments, about ${formatNaira(avg)} is left over each month on average${
+              customer.derivation ? ` — worked out from ${customer.derivation.transactionCount} transactions` : ""
+            }.`,
+        fromAnswers ? "self_reported" : "spending_patterns",
       );
     } else if (ratio < 0.08) {
       add(
         "low_surplus",
         1 - ratio / 0.08,
-        "Almost all of the money that comes in each month goes out again on spending and commitments.",
-        "spending_patterns",
+        fromAnswers
+          ? "From what you told us, almost all of the money that comes in each month goes out again."
+          : "Almost all of the money that comes in each month goes out again on spending and commitments.",
+        fromAnswers ? "self_reported" : "spending_patterns",
       );
     }
   }
 
   // Account activity
   let activity: FinancialContext["activity"] = null;
-  if (permissions.account_activity) {
+  if (permissions.account_activity || told.balance) {
+    const balanceSrc: SignalSource = told.balance ? "self_reported" : "account_activity";
     activity = {
       averageBalance: customer.averageBalance,
       savingMonths: customer.savingMonths,
@@ -201,15 +221,19 @@ export function buildFinancialContext(
         add(
           "large_idle_balance",
           Math.min(1, customer.averageBalance / (6 * monthlySpend)),
-          `You usually hold about ${formatNaira(customer.averageBalance)} — more than ${Math.floor(customer.averageBalance / monthlySpend)} months of spending — in your everyday account.`,
-          "account_activity",
+          told.balance
+            ? `You told us you keep about ${formatNaira(customer.averageBalance)} in your personal and savings accounts — more than ${Math.floor(customer.averageBalance / monthlySpend)} months of spending.`
+            : `You usually hold about ${formatNaira(customer.averageBalance)} — more than ${Math.floor(customer.averageBalance / monthlySpend)} months of spending — in your everyday account.`,
+          balanceSrc,
         );
       } else if (customer.averageBalance < monthlySpend) {
         add(
           "no_emergency_buffer",
           1 - customer.averageBalance / monthlySpend,
-          "Your typical balance would not cover one month of your usual spending.",
-          "account_activity",
+          told.balance
+            ? "From what you told us, the money in your accounts wouldn't cover one month of your spending."
+            : "Your typical balance would not cover one month of your usual spending.",
+          balanceSrc,
         );
       }
     }

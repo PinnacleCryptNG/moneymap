@@ -12,6 +12,7 @@ import type {
   Product,
   RawTransaction,
   RecommendationRecord,
+  SelfReport,
   TriggerEvent,
 } from "../types";
 
@@ -129,6 +130,7 @@ export interface ServerSnapshot {
   liveTransactions: RawTransaction[];
   notifications: AppNotification[];
   triggerEvents: TriggerEvent[];
+  selfReport: SelfReport | null;
 }
 
 export const http = {
@@ -146,7 +148,7 @@ export const http = {
   },
 
   async snapshot(): Promise<ServerSnapshot> {
-    const [consent, goals, preferences, recommendations, applications, products, statement, notifications, triggerEvents] = await Promise.all([
+    const [consent, goals, preferences, recommendations, applications, products, statement, notifications, triggerEvents, selfReport] = await Promise.all([
       call<{ permissions: Permissions; history: ConsentRecord[] }>("GET", "/consent"),
       call<GoalOut[]>("GET", "/goals"),
       call<Preferences>("GET", "/preferences"),
@@ -156,6 +158,7 @@ export const http = {
       call<{ transactions: (RawTransaction & { category: string; description: string })[] }>("GET", "/customer/transactions?limit=50"),
       call<AppNotification[]>("GET", "/notifications"),
       call<TriggerEvent[]>("GET", "/events"),
+      call<SelfReport | null>("GET", "/customer/self-report"),
     ]);
     const g = goals.map(toGoal);
     return {
@@ -173,16 +176,18 @@ export const http = {
         .map(({ id, date, narration, amount, direction, channel }) => ({ id, date, narration, amount, direction, channel })),
       notifications,
       triggerEvents,
+      selfReport,
     };
   },
 
+  putSelfReport: (r: Omit<SelfReport, "updatedAt">) => call<SelfReport>("PUT", "/customer/self-report", r),
   exportMyData: () => call<Record<string, unknown>>("GET", "/customer/data-export"),
   eraseMyData: () => call("DELETE", "/customer/data"),
   simulateEvent: (type: "income" | "windfall") => call("POST", "/demo/events", { type }),
   readNotification: (notificationId: string) => call("POST", `/notifications/${notificationId}/read`, {}),
 
   setConsent: (p: Partial<Permissions>) => call("POST", "/consent", p),
-  createGoal: (g: GoalDraft) => call<GoalOut>("POST", "/goals", { ...goalBody(g), amount: Math.round(g.amount), active: true }),
+  createGoal: (g: GoalDraft, active = true) => call<GoalOut>("POST", "/goals", { ...goalBody(g), amount: Math.round(g.amount), active }),
   updateGoal: (goalId: string, g: Partial<GoalDraft> & { active?: boolean }) => call<GoalOut>("PATCH", `/goals/${goalId}`, goalBody(g)),
   deleteGoal: (goalId: string) => call("DELETE", `/goals/${goalId}`),
   setPreferences: (p: Preferences) => call("PATCH", "/preferences", p),

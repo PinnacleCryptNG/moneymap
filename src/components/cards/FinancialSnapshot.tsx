@@ -24,7 +24,11 @@ function ordinal(n: number) {
 
 export function cashFlowPattern(ctx: FinancialContext): string | null {
   if (!ctx.income || !ctx.spending) return null;
-  const first = ctx.income.source === "salary" ? `Salary lands around the ${ordinal(ctx.income.day)}` : `Allowance arrives around the ${ordinal(ctx.income.day)}`;
+  const first = !ctx.income.day
+    ? "Income comes in each month"
+    : ctx.income.source === "salary"
+      ? `Salary lands around the ${ordinal(ctx.income.day)}`
+      : `Allowance arrives around the ${ordinal(ctx.income.day)}`;
   const bills = `${formatNaira(ctx.spending.recurring)} in fixed bills and commitments follows`;
   const end = ctx.surplus
     ? ctx.surplus.average > 0.1 * ctx.income.average
@@ -53,7 +57,7 @@ export function FinancialSnapshot({ ctx, customer }: { ctx: FinancialContext; cu
       value: ctx.income ? (
         <>
           <span className="font-semibold tabular-nums">{formatNaira(ctx.income.average)}</span>
-          <span className="text-navy-500"> / month · {ctx.income.source === "salary" ? "salary" : "allowance"}, {stability}</span>
+          <span className="text-navy-500"> / month · {!ctx.income.day ? "from what you told us" : ctx.income.source === "salary" ? "salary" : "allowance"}, {stability}</span>
         </>
       ) : null,
     },
@@ -108,7 +112,8 @@ export function summaryTiles(ctx: FinancialContext) {
     ? { rising: "Rising", high: "Stable", moderate: "Varies a little", low: "Irregular" }[ctx.income.stability]
     : "Not shared";
   const spending = ctx.spending ? { low: "Low", moderate: "Moderate", high: "High" }[ctx.spending.level] : "Not shared";
-  const savings = ctx.activity
+  // Saving habits come only from the statement; a balance the customer told us doesn't show a habit.
+  const savings = ctx.activity && ctx.permissions.account_activity
     ? ctx.activity.savingMonths >= 4
       ? "Growing"
       : ctx.activity.savingMonths >= 2

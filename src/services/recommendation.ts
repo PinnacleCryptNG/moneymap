@@ -16,8 +16,9 @@ export function useEngineInput(requestedMore = false): EngineInput {
       products: state.products,
       history: state.recommendations,
       requestedMore,
+      selfReport: state.selfReport,
     }),
-    [customer, state.permissions, activeGoal, state.preferences, state.products, state.recommendations, requestedMore],
+    [customer, state.permissions, activeGoal, state.preferences, state.products, state.recommendations, requestedMore, state.selfReport],
   );
 }
 
@@ -44,6 +45,7 @@ function useServerPreview(requestedMore: boolean, input: EngineInput): EngineRes
     input.products.map((p) => [p.product_id, p.status, p.version]),
     input.history.map((h) => [h.id, h.status, h.feedback]),
     requestedMore,
+    input.selfReport?.updatedAt,
   ]);
   useEffect(() => {
     if (!API_MODE || !http.hasSession()) return;
@@ -88,6 +90,7 @@ export function useRecommendation(requestedMore = false) {
     input.preferences,
     input.products.map((p) => [p.product_id, p.version]),
     requestedMore,
+    input.selfReport?.updatedAt,
     attempt,
   ]);
 

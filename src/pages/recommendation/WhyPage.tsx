@@ -92,6 +92,9 @@ export function WhyPage() {
                 <Badge key={k} icon={<Lock size={12} aria-hidden />}>{PERMISSION_COPY[k].title} — {ctx.permissions[k] ? "not needed" : "not shared"}</Badge>
               ),
             )}
+            {ex.dataUsed.includes("self_reported") && (
+              <Badge tone="green" icon={<CircleCheck size={14} aria-hidden />}>What you told us — used</Badge>
+            )}
           </div>
         </Section>
         <Section icon={<BadgeCheck size={20} aria-hidden />} title="Eligibility" tone="green">

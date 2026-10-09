@@ -44,6 +44,7 @@ export function SettingsPage() {
             messages: state.notifications,
             events_noticed: state.triggerEvents,
             product_requests: state.applications,
+            your_answers: state.selfReport,
           };
       download(`moneymap-data-${customer.id}.json`, data);
       toast("Your MoneyMap data has been downloaded.", "success");

@@ -6,7 +6,7 @@ import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import { DEFAULT_PREFERENCES } from "../src/data/defaults";
 import { MODEL_VERSION, REMIND_LATER_DAYS, THRESHOLDS, WEIGHTS, runEngine, toApiResponse, toRecord, type EngineResult } from "../src/engine";
 import { simulateCohort } from "../src/services/analytics";
-import type { AppNotification, Channel, FeedbackType, GoalDraft, Permissions, Preferences, RawTransaction, Trigger } from "../src/types";
+import type { Amount, AppNotification, Channel, SelfReport, FeedbackType, GoalDraft, Permissions, Preferences, RawTransaction, Trigger } from "../src/types";
 import { decideOnTrigger, detectTrigger, simulatedCredit } from "../src/engine/triggers";
 import { GOAL_LIMITS } from "../src/utils/goals";
 import { DEMO_TODAY } from "../src/data/ledgers";
@@ -159,6 +159,7 @@ export async function buildApp(
       history: db.listRecommendations(customerId),
       requestedMore,
       trigger,
+      selfReport: db.getSelfReport(customerId),
     });
     db.saveFinancialSnapshot(customerId, result.context);
     return result;
@@ -384,6 +385,86 @@ export async function buildApp(
     async (req, reply) => (db.deleteGoal(req.session!.sub, req.params.id) ? reply.code(204).send() : fail(reply, 404, "not_found", "Goal not found.")),
   );
 
+  // ---------------- The customer's own answers ----------------
+  const NAIRA = { type: "integer", minimum: 0, maximum: 100_000_000_000 };
+  const amountSchema = {
+    oneOf: [
+      { type: "object", required: ["kind", "value"], additionalProperties: false, properties: { kind: { const: "exact" }, value: NAIRA } },
+      { type: "object", required: ["kind", "min", "max"], additionalProperties: false, properties: { kind: { const: "range" }, min: NAIRA, max: NAIRA } },
+      { type: "object", required: ["kind"], additionalProperties: false, properties: { kind: { const: "unsure" } } },
+    ],
+  };
+  const titleSchema = { type: "string", minLength: 1, maxLength: 60 };
+  const selfReportSchema = {
+    type: "object",
+    required: ["accounts", "fixedIncome", "variableIncome", "expenses"],
+    additionalProperties: false,
+    properties: {
+      accounts: {
+        type: "array",
+        maxItems: 4,
+        items: {
+          type: "object",
+          required: ["kind", "amount"],
+          additionalProperties: false,
+          properties: { kind: { type: "string", enum: ["personal", "business", "savings", "investment"] }, amount: amountSchema },
+        },
+      },
+      fixedIncome: { oneOf: [{ type: "null" }, amountSchema] },
+      variableIncome: {
+        type: "array",
+        maxItems: 10,
+        items: { type: "object", required: ["title", "amount"], additionalProperties: false, properties: { title: titleSchema, amount: amountSchema } },
+      },
+      expenses: {
+        oneOf: [
+          { type: "object", required: ["mode", "total"], additionalProperties: false, properties: { mode: { const: "total" }, total: amountSchema } },
+          {
+            type: "object",
+            required: ["mode", "items"],
+            additionalProperties: false,
+            properties: {
+              mode: { const: "itemised" },
+              items: {
+                type: "array",
+                maxItems: 20,
+                items: { type: "object", required: ["category", "amount"], additionalProperties: false, properties: { category: titleSchema, amount: amountSchema } },
+              },
+            },
+          },
+          { type: "object", required: ["mode"], additionalProperties: false, properties: { mode: { const: "unsure" } } },
+        ],
+      },
+    },
+  };
+
+  app.get(
+    "/api/v1/customer/self-report",
+    { preHandler: customerOnly, schema: { tags: ["Customer"], summary: "What the customer told MoneyMap about their money", ...secured } },
+    async (req) => db.getSelfReport(req.session!.sub),
+  );
+
+  app.put<{ Body: Omit<SelfReport, "updatedAt"> }>(
+    "/api/v1/customer/self-report",
+    {
+      preHandler: customerOnly,
+      schema: {
+        tags: ["Customer"],
+        summary: "Save the customer's own answers: account balances, fixed and variable income, expenses",
+        description:
+          "Each amount is exact, a range, or 'unsure'. MoneyMap uses these figures only where the customer hasn't shared their statement, " +
+          "and says so in every explanation that relies on them.",
+        body: selfReportSchema,
+        ...secured,
+      },
+    },
+    async (req, reply) => {
+      const bad = rangeError(req.body);
+      if (bad) return fail(reply, 400, "invalid_request", bad);
+      return db.setSelfReport(req.session!.sub, req.body);
+    },
+  );
+
   // ---------------- Data rights (step 5, Nigeria Data Protection Act 2023) ----------------
   app.get(
     "/api/v1/customer/data-export",
@@ -409,6 +490,7 @@ export async function buildApp(
         messages: db.listNotifications(id),
         events_noticed: db.listTriggerEvents(id),
         product_requests: db.listApplications(id),
+        your_answers: db.getSelfReport(id),
         statement: { lines: db.getTransactions(id).length, last_refresh: db.lastSync(id) },
       };
     },
@@ -422,7 +504,7 @@ export async function buildApp(
         tags: ["Customer"],
         summary: "Erase the customer's MoneyMap data (right to erasure)",
         description:
-          "Removes consents, goals, preferences, recommendations, feedback, messages, events, product requests and MoneyMap's cached copy of statement lines. " +
+          "Removes consents, goals, preferences, your answers about your money, recommendations, feedback, messages, events, product requests and MoneyMap's cached copy of statement lines. " +
           "The audit log keeps only that an erasure happened. Bank records held by Zenith are not affected.",
         ...secured,
       },
@@ -903,4 +985,15 @@ export async function buildApp(
   });
 
   return app;
+}
+
+/** JSON Schema can't compare two fields: a range must run from low to high. */
+function rangeError(r: Omit<SelfReport, "updatedAt">): string | null {
+  const all: Amount[] = [
+    ...r.accounts.map((a) => a.amount),
+    ...(r.fixedIncome ? [r.fixedIncome] : []),
+    ...r.variableIncome.map((v) => v.amount),
+    ...(r.expenses.mode === "total" ? [r.expenses.total] : r.expenses.mode === "itemised" ? r.expenses.items.map((i) => i.amount) : []),
+  ];
+  return all.some((a) => a.kind === "range" && a.min >= a.max) ? "In a range, the first amount must be lower than the second." : null;
 }
