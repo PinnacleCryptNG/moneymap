@@ -1,4 +1,4 @@
-import { BellRing, CheckCircle2, EyeOff } from "lucide-react";
+import { BellRing, CheckCircle2, EyeOff } from "../../components/icons";
 import { useStore } from "../../app/providers/store";
 import { Badge } from "../../components/shared/Badge";
 import { ButtonLink } from "../../components/shared/Button";

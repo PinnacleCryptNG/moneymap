@@ -1,4 +1,4 @@
-import { Plus, X } from "lucide-react";
+import { Plus, X } from "../icons";
 import { useId } from "react";
 import type { AccountKind, Amount, SelfReport } from "../../types";
 import { formatNaira } from "../../utils/format";

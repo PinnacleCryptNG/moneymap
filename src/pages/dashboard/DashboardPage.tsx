@@ -1,4 +1,4 @@
-import { ArrowRight, BellRing, CheckCircle2, Flag, Footprints, PauseCircle } from "lucide-react";
+import { ArrowRight, BellRing, CheckCircle2, Flag, Footprints, PauseCircle } from "../../components/icons";
 import { Link } from "react-router-dom";
 import { useStore } from "../../app/providers/store";
 import { MoneySummary } from "../../components/cards/MoneySummary";

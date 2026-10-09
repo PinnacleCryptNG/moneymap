@@ -1,4 +1,4 @@
-import { Save } from "lucide-react";
+import { Save } from "../../components/icons";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "../../app/providers/store";

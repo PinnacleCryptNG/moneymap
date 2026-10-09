@@ -43,7 +43,7 @@ Two checklists the team asked to track before launch, with MoneyMap's status and
 | 5 | Cookie consent banner | ➖ | No cookies and no trackers. The visit counter stores no identifiers, so there's nothing to consent to; the privacy policy says so. |
 | 6 | Meta titles + descriptions | ✅ | Each screen sets its own title; the site has a description, canonical URL and theme colour. |
 | 7 | Social preview image | ✅ | `og-image.png` (1200×630) with Open Graph and Twitter tags. Checked on the live site. |
-| 8 | Add a favicon | ✅ | SVG favicon, 32 px PNG, Apple touch icon and app icons (192, 512) with a web manifest. |
+| 8 | Add a favicon | ✅ | New MoneyMap mark: SVG favicon, 32 px PNG, Apple touch icon, app icons (192, 512, maskable) and a web manifest. Full brand kit in `docs/brand`, rebuilt with `npm run brand`. |
 | 9 | Sitemap + robots.txt | ✅ | `robots.txt` allows only the public page and points to `sitemap.xml`. Both checked on the live site. |
 | 10 | Alt text on images | ✅ | Every image has alt text and icons are hidden from screen readers. The automated accessibility audit passes on every screen. |
 | 11 | Compress your images | ✅ | The social image is a 59 KB PNG; icons are 1–13 KB. The rest is one SVG logo. |

@@ -1,4 +1,4 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight } from "../icons";
 import { Link } from "react-router-dom";
 import type { Evaluation } from "../../engine";
 import type { Product } from "../../types";
@@ -33,7 +33,7 @@ export function FitBadge({ evaluation }: { evaluation: Evaluation }) {
       inactive: "Unavailable",
       opted_out: "Hidden by you",
       customer_declined: "Declined",
-      ineligible: "Not eligible",
+      ineligible: "You don't qualify",
       unsuitable: "Doesn't fit",
       conflict: "Not right now",
       snoozed: "Snoozed",

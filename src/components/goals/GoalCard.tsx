@@ -1,4 +1,4 @@
-import { Flag } from "lucide-react";
+import { Flag } from "../icons";
 import { goalPlan } from "../../engine/plan";
 import type { FinancialGoal } from "../../types";
 import { formatNaira } from "../../utils/format";

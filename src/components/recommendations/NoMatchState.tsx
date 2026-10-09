@@ -1,4 +1,4 @@
-import { CheckCircle2, PauseCircle } from "lucide-react";
+import { CheckCircle2, PauseCircle } from "../icons";
 import type { EngineResult } from "../../engine";
 import { Button, ButtonLink } from "../shared/Button";
 import { EnginePipeline } from "./EnginePipeline";

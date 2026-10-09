@@ -1,4 +1,4 @@
-import { ArrowLeft, BadgeCheck, CalendarClock, CircleAlert, CircleCheck, CircleHelp, Database, ExternalLink, Flag, Lock, Package, Wallet } from "lucide-react";
+import { ArrowLeft, BadgeCheck, CalendarClock, CircleAlert, CircleCheck, CircleHelp, Database, ExternalLink, Flag, Lock, Package, Wallet } from "../../components/icons";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { consideredAlternatives, WhyNotList } from "../../components/recommendations/WhyNotList";
@@ -12,10 +12,10 @@ import { API_MODE, http } from "../../services/http";
 import { useEngineResult } from "../../services/recommendation";
 
 const FACTOR_LABELS: { key: keyof typeof WEIGHTS; label: string; hint: string }[] = [
-  { key: "needFit", label: "Need fit", hint: "How strongly your situation shows the need this product meets" },
-  { key: "goalFit", label: "Goal fit", hint: "How directly it serves the goal you set" },
-  { key: "behaviourFit", label: "Behaviour fit", hint: "How many of the product's signals appear in your activity" },
-  { key: "eligibilityFit", label: "Eligibility", hint: "Published conditions and MoneyMap's checks" },
+  { key: "needFit", label: "Fits your needs", hint: "How clearly your situation shows you need what this product does" },
+  { key: "goalFit", label: "Fits your goal", hint: "How directly it helps with the goal you set" },
+  { key: "behaviourFit", label: "Fits your habits", hint: "How well it matches how you use your account" },
+  { key: "eligibilityFit", label: "Can you get it", hint: "Zenith's published conditions" },
   { key: "timingFit", label: "Timing", hint: "Whether now is the right moment" },
   { key: "preferenceFit", label: "Your preferences", hint: "Whether you've asked for this kind of help" },
 ];
@@ -71,7 +71,7 @@ export function WhyPage() {
         <Section icon={<Flag size={20} aria-hidden />} title="Your goal">
           <p className="text-ink-2">{ex.goal ?? "You haven't shared a goal, so MoneyMap worked from your financial activity."}</p>
         </Section>
-        <Section icon={<Wallet size={20} aria-hidden />} title="Your financial context">
+        <Section icon={<Wallet size={20} aria-hidden />} title="Your money">
           <ul className="flex list-disc flex-col gap-1 pl-5 text-ink-2">
             {ex.context.map((c) => <li key={c}>{c}</li>)}
           </ul>
@@ -97,7 +97,7 @@ export function WhyPage() {
             )}
           </div>
         </Section>
-        <Section icon={<BadgeCheck size={20} aria-hidden />} title="Eligibility" tone="green">
+        <Section icon={<BadgeCheck size={20} aria-hidden />} title="Can you get it?" tone="green">
           <p className="mb-3 text-ink-2">{ex.eligibility}</p>
           {top.eligibility.checks.length > 0 && (
             <ul className="flex flex-col gap-2">
@@ -127,7 +127,7 @@ export function WhyPage() {
 
       <section tabIndex={0} className="card overflow-x-auto p-5 md:p-6 focus:outline-none focus-visible:ring-3 focus-visible:ring-blue/40" aria-labelledby="score-title">
         <h2 id="score-title" className="mb-1 !text-[18px] !leading-7">How the {top.score}% match was calculated</h2>
-        <p className="mb-4 text-small text-ink-3">Not a mysterious AI percentage — a weighted score you can check. Prototype weights; production weights would be validated and governed.</p>
+        <p className="mb-4 text-small text-ink-3">Not a mystery number. Each part below adds points, and you can check every one.</p>
         <table className="w-full min-w-[480px] text-small">
           <caption className="sr-only">Score breakdown by factor</caption>
           <thead>

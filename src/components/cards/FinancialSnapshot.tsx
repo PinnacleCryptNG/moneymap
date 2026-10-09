@@ -1,4 +1,4 @@
-import { Lock } from "lucide-react";
+import { Lock } from "../icons";
 import { Link } from "react-router-dom";
 import type { FinancialContext } from "../../engine";
 import type { CustomerProfile, ExistingProductId } from "../../types";
@@ -29,7 +29,7 @@ export function cashFlowPattern(ctx: FinancialContext): string | null {
     : ctx.income.source === "salary"
       ? `Salary lands around the ${ordinal(ctx.income.day)}`
       : `Allowance arrives around the ${ordinal(ctx.income.day)}`;
-  const bills = `${formatNaira(ctx.spending.recurring)} in fixed bills and commitments follows`;
+  const bills = `${formatNaira(ctx.spending.recurring)} in regular bills follows`;
   const end = ctx.surplus
     ? ctx.surplus.average > 0.1 * ctx.income.average
       ? `about ${formatNaira(ctx.surplus.average)} is usually left by month-end`

@@ -64,13 +64,13 @@ export function detectNeeds(ctx: FinancialContext): DetectedNeed[] {
         const plan = goalPlan(goal, ctx.surplus?.average ?? null);
         const financing: FinancialNeed = isAssetGoal(goal) ? "asset_financing" : "expense_financing";
         if (plan.affordableFromSurplus === true) {
-          raise("goal_saving", 85, "Your monthly surplus can cover this expense in time if you save for it.");
+          raise("goal_saving", 85, "What you have left each month can cover this in time if you save for it.");
         } else {
           raise(
             financing,
             ctx.surplus ? 85 : 70,
             ctx.surplus
-              ? "The expense is larger than you can save from your surplus before it's due."
+              ? "This costs more than you can save from what's left each month before it's due."
               : "You're planning a major expense.",
           );
         }

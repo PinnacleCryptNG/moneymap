@@ -1,4 +1,4 @@
-import { Flag, Pencil, Plus, Trash2 } from "lucide-react";
+import { Flag, Pencil, Plus, Trash2 } from "../../components/icons";
 import { useState } from "react";
 import { useStore } from "../../app/providers/store";
 import { GoalCard } from "../../components/goals/GoalCard";

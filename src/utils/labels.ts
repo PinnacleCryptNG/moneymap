@@ -8,21 +8,21 @@ import {
   ShieldCheck,
   TrendingUp,
   Wallet,
-  type LucideIcon,
-} from "lucide-react";
+  type IconType,
+} from "../components/icons";
 import type { ExpenseKind, FeedbackType, GoalType, ProductCategory } from "../types";
 
-export const CATEGORY_META: Record<ProductCategory, { label: string; icon: LucideIcon }> = {
+export const CATEGORY_META: Record<ProductCategory, { label: string; icon: IconType }> = {
   savings: { label: "Savings", icon: PiggyBank },
   accounts: { label: "Accounts", icon: GraduationCap },
   financing: { label: "Loans & financing", icon: HandCoins },
   cards: { label: "Cards", icon: CreditCard },
 };
 
-export const GOAL_META: Record<GoalType, { label: string; icon: LucideIcon; hint: string; needsAmount: boolean }> = {
+export const GOAL_META: Record<GoalType, { label: string; icon: IconType; hint: string; needsAmount: boolean }> = {
   save_more: { label: "Save more", icon: PiggyBank, hint: "Put money aside for something specific", needsAmount: true },
-  grow_money: { label: "Grow my money", icon: TrendingUp, hint: "Make money left over work harder", needsAmount: false },
-  major_expense: { label: "Fund a major expense", icon: HandCoins, hint: "Rent, school fees, a wedding, a car…", needsAmount: true },
+  grow_money: { label: "Grow my money", icon: TrendingUp, hint: "Make my spare money earn more", needsAmount: false },
+  major_expense: { label: "Pay for something big", icon: HandCoins, hint: "Rent, school fees, a wedding, a car…", needsAmount: true },
   everyday: { label: "Manage my everyday money", icon: Wallet, hint: "Smoother payments and spending", needsAmount: false },
   grow_business: { label: "Grow my business", icon: Briefcase, hint: "Banking that keeps up with your business", needsAmount: false },
   protect: { label: "Protect my finances", icon: ShieldCheck, hint: "Be ready for the unexpected", needsAmount: false },

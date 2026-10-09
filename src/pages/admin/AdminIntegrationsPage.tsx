@@ -1,4 +1,4 @@
-import { BellRing, Building2, FileInput, KeyRound, Landmark, RefreshCw, Webhook } from "lucide-react";
+import { BellRing, Building2, FileInput, KeyRound, Landmark, RefreshCw, Webhook } from "../../components/icons";
 import { useCallback, useEffect, useState } from "react";
 import { Badge } from "../../components/shared/Badge";
 import { Button } from "../../components/shared/Button";

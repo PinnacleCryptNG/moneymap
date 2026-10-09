@@ -4,17 +4,17 @@ import type { PermissionKey } from "../types";
 export const PERMISSION_COPY: Record<PermissionKey, { title: string; use: string; why: string }> = {
   account_activity: {
     title: "Account activity",
-    use: "Used to understand your financial patterns — balances, how often you transact and how you set money aside.",
+    use: "Used to see your balance, how often you use your account and how you put money aside.",
     why: "Helps us spot when money is sitting idle or when your banking needs have changed.",
   },
   income_patterns: {
     title: "Income patterns",
-    use: "Used to understand your cash flow and identify relevant opportunities.",
+    use: "Used to see when money comes in and how much.",
     why: "Shows whether your income is steady or changing, so suggestions fit what you can afford.",
   },
   spending_patterns: {
     title: "Spending patterns",
-    use: "Used to understand recurring commitments and spending patterns.",
+    use: "Used to see your regular bills and where your money goes.",
     why: "Lets us work out what you have left after your usual spending.",
   },
   existing_products: {

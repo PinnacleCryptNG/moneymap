@@ -1,4 +1,4 @@
-import { CheckCircle2, Info } from "lucide-react";
+import { CheckCircle2, Info } from "../../components/icons";
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../../app/providers/store";
 import { Badge } from "../../components/shared/Badge";
@@ -31,7 +31,7 @@ function Kpi({ label, value, note, trend, delta, hero = false }: { label: string
     <div className={`${hero ? "midnight border-0 text-white" : "card"} flex flex-col justify-between gap-4 rounded-[20px] p-5`}>
       <dt className={`flex items-center justify-between gap-2 text-small font-medium ${hero ? "text-white/70" : "text-ink-3"}`}>
         {label}
-        {hero && <span className="rounded-full bg-mint/15 px-2 py-0.5 text-[11px] font-semibold text-mint">North Star</span>}
+        {hero && <span className="rounded-full bg-mint/15 px-2 py-0.5 text-[11px] font-semibold text-mint">Main goal</span>}
       </dt>
       <dd className="flex items-end justify-between gap-3">
         <span>
@@ -64,7 +64,7 @@ export function AdminOverviewPage() {
         <p className="eyebrow">Bank view · last {ROUNDS} weeks</p>
         <h1>How MoneyMap is <span className="accent-serif">performing</span></h1>
         <p className="max-w-prose text-ink-3">
-          The real engine, run over {m.customers} synthetic customers. Change the catalogue and every number here updates.
+          MoneyMap's real matching, run over {m.customers} sample customers. Change the catalogue and every number here updates.
         </p>
       </header>
 
@@ -81,7 +81,7 @@ export function AdminOverviewPage() {
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.4fr_1fr]">
         <section className="card p-5 md:p-6" aria-labelledby="funnel-title">
           <h2 id="funnel-title" className="!text-[18px]">From decision to customer</h2>
-          <p className="mb-5 mt-1 text-small text-ink-3">Most decisions end with no suggestion. That's the engine being careful.</p>
+          <p className="mb-5 mt-1 text-small text-ink-3">Most checks end with no suggestion. That's MoneyMap being careful.</p>
           <Funnel
             stages={[
               { label: "Decisions", value: m.decisions, note: `${m.customers} customers × ${ROUNDS} weeks` },
@@ -158,7 +158,7 @@ export function AdminOverviewPage() {
         </table>
         {m.products.some((p) => p.recommended === 0 && p.product.status === "active") && (
           <p className="mt-4 flex items-start gap-2 text-small text-ink-3">
-            <Info size={16} className="mt-0.5 shrink-0" aria-hidden /> A product nobody was matched to wasn't the best fit for this cohort. That's a signal to review, not to push it harder.
+            <Info size={16} className="mt-0.5 shrink-0" aria-hidden /> A product nobody was matched to wasn't the best fit for this group. That's a signal to review, not to push it harder.
           </p>
         )}
       </section>
@@ -190,7 +190,7 @@ export function AdminOverviewPage() {
             {[
               ["Suggestions per customer", m.exposuresPerCustomer.toFixed(1), `over ${ROUNDS} weeks · max ${m.maxExposures}`],
               ["Held by weekly cap", pct(m.windowCapped, m.decisions), `1 new suggestion per ${DECISION_WINDOW_DAYS} days`],
-              ["Paused for fatigue", pct(m.paused, m.decisions), "after repeated dismissals"],
+              ["Paused after “no”s", pct(m.paused, m.decisions), "after repeated dismissals"],
               ["Repeated after a no", String(m.repeatAfterDismissal), "target: 0"],
             ].map(([label, value, note]) => (
               <div key={label} className="rounded-[14px] bg-surface-2 p-3.5">

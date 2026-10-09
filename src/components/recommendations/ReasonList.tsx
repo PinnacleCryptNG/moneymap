@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check } from "../icons";
 
 export function ReasonList({ items, title = "Based on:" }: { items: string[]; title?: string }) {
   return (

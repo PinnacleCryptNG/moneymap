@@ -176,7 +176,7 @@ export function buildFinancialContext(
         Math.min(1, ratio / 0.4),
         fromAnswers
           ? `Based on what you told us, about ${formatNaira(avg)} is left over each month after your spending.`
-          : `After your usual spending and commitments, about ${formatNaira(avg)} is left over each month on average${
+          : `After your usual spending and bills, about ${formatNaira(avg)} is left over each month on average${
               customer.derivation ? ` — worked out from ${customer.derivation.transactionCount} transactions` : ""
             }.`,
         fromAnswers ? "self_reported" : "spending_patterns",
@@ -187,7 +187,7 @@ export function buildFinancialContext(
         1 - ratio / 0.08,
         fromAnswers
           ? "From what you told us, almost all of the money that comes in each month goes out again."
-          : "Almost all of the money that comes in each month goes out again on spending and commitments.",
+          : "Almost all of the money that comes in each month goes out again on spending and bills.",
         fromAnswers ? "self_reported" : "spending_patterns",
       );
     }
@@ -276,7 +276,7 @@ export function buildFinancialContext(
       add(
         "savings_in_everyday_account",
         1,
-        "The money you keep aside stays in the same account you spend from — you don't have a dedicated savings product.",
+        "The money you keep aside stays in the same account you spend from — you don't have a separate savings account.",
         "existing_products",
       );
     }

@@ -23,7 +23,7 @@ export function SiteFooter({ dark = false }: { dark?: boolean }) {
       <nav aria-label="Legal" className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 px-4 pb-20 pt-2 text-small md:px-6">
         <Link to="/privacy" className={link}>Privacy policy</Link>
         <Link to="/terms" className={link}>Terms of use</Link>
-        <span className={dark ? "text-white/60" : "text-ink-3"}>Prototype · synthetic data only</span>
+        <span className={dark ? "text-white/60" : "text-ink-3"}>Prototype · sample data only</span>
       </nav>
     </footer>
   );

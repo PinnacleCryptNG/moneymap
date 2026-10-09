@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Check, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ShieldCheck, Sparkles } from "../../components/icons";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useStore } from "../../app/providers/store";

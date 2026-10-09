@@ -1,4 +1,4 @@
-import { Download, RotateCcw, ShieldOff, Trash2, UserRound } from "lucide-react";
+import { Download, RotateCcw, ShieldOff, Trash2, UserRound } from "../../components/icons";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "../../app/providers/store";
@@ -57,20 +57,20 @@ export function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader eyebrow="Profile & settings" title="Your data. Your permission. Your map." body="You decide what MoneyMap can use to personalise your experience — and what kind of help you want." />
+      <PageHeader eyebrow="Profile & settings" title="Your data. Your permission. Your map." body="You decide what MoneyMap can use, and what kind of help you want." />
 
       <section className="card flex flex-wrap items-center gap-4 p-5 md:p-6">
         <span className="flex h-14 w-14 items-center justify-center rounded-full bg-night text-[20px] font-semibold text-white" aria-hidden>{customer.firstName[0]}</span>
         <div className="flex-1">
           <p className="font-semibold">{customer.name}</p>
-          <p className="text-small text-ink-3">Demo customer · {customer.persona} · synthetic data</p>
+          <p className="text-small text-ink-3">Demo customer · {customer.persona} · sample data</p>
         </div>
         <ButtonLink to="/" variant="secondary" size="sm" icon={<UserRound size={18} aria-hidden />}>Switch demo customer</ButtonLink>
       </section>
 
       <section aria-labelledby="perm-title">
         <h2 id="perm-title" className="mb-1">Permissions</h2>
-        <p className="mb-4 text-ink-3">Changes apply immediately. Withdrawn data stops being used for personalisation straight away.</p>
+        <p className="mb-4 text-ink-3">Changes apply immediately. Anything you turn off stops being used straight away.</p>
         <div className="flex flex-col gap-3">
           {PERMISSION_ORDER.map((k) => (
             <PermissionToggle
@@ -85,7 +85,7 @@ export function SettingsPage() {
           ))}
         </div>
         <div className="mt-4 flex flex-wrap gap-3">
-          <Button variant="danger" icon={<ShieldOff size={18} aria-hidden />} onClick={() => setConfirmWithdraw(true)}>Withdraw all consent</Button>
+          <Button variant="danger" icon={<ShieldOff size={18} aria-hidden />} onClick={() => setConfirmWithdraw(true)}>Turn off all permissions</Button>
           <ButtonLink to="/app/goals" variant="ghost">Manage or delete saved goals</ButtonLink>
         </div>
       </section>
@@ -119,11 +119,11 @@ export function SettingsPage() {
         <Button variant="ghost" icon={<RotateCcw size={18} aria-hidden />} onClick={() => { dispatch({ type: "reset" }); navigate("/"); }}>Reset all demo data</Button>
       </section>
 
-      <Modal open={confirmWithdraw} onClose={() => setConfirmWithdraw(false)} title="Withdraw all consent?">
-        <p className="mb-6 text-ink-2">MoneyMap will stop using all your banking information for personalisation. You'll still be able to explore products yourself, and you can allow access again any time.</p>
+      <Modal open={confirmWithdraw} onClose={() => setConfirmWithdraw(false)} title="Turn off all permissions?">
+        <p className="mb-6 text-ink-2">MoneyMap will stop using your banking information. You'll still be able to explore products yourself, and you can allow access again any time.</p>
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={() => setConfirmWithdraw(false)}>Cancel</Button>
-          <Button variant="danger" onClick={() => { dispatch({ type: "withdraw_all" }); setConfirmWithdraw(false); toast("All consent withdrawn.", "info"); }}>Withdraw all</Button>
+          <Button variant="danger" onClick={() => { dispatch({ type: "withdraw_all" }); setConfirmWithdraw(false); toast("All permissions turned off.", "info"); }}>Turn them all off</Button>
         </div>
       </Modal>
       <Modal open={confirmErase} onClose={() => setConfirmErase(false)} title="Delete your MoneyMap data?">

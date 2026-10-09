@@ -43,7 +43,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/app\/settings/, "Settings"],
   [/^\/app/, "Your MoneyMap"],
   [/^\/admin\/products/, "Product catalogue · Bank view"],
-  [/^\/admin\/engine/, "Engine & rules · Bank view"],
+  [/^\/admin\/engine/, "How matching works · Bank view"],
   [/^\/admin\/integrations/, "Integrations · Bank view"],
   [/^\/admin\/audit/, "Audit log · Bank view"],
   [/^\/admin/, "Bank view"],

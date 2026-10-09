@@ -1,4 +1,4 @@
-import { ExternalLink } from "lucide-react";
+import { ExternalLink } from "../../components/icons";
 import { useStore } from "../../app/providers/store";
 import { Badge } from "../../components/shared/Badge";
 import { PageHeader } from "../../components/shared/PageHeader";
@@ -18,7 +18,7 @@ export function AdminProductsPage() {
       <PageHeader
         eyebrow="Catalogue"
         title="Zenith products in MoneyMap"
-        body="The six products the engine matches against. Published information is separated from MoneyMap's own matching rules. Status changes take effect immediately and are versioned and audited."
+        body="The six products MoneyMap can suggest. Published information is separated from MoneyMap's own matching rules. Status changes take effect immediately and are versioned and audited."
       />
       <p className="mb-6 rounded-[12px] border border-amber/40 bg-amber-50 p-3 text-small text-amber-700">
         Published facts come from press and comparison sites found during the build, not Zenith's own pages. Confirm each against Zenith's approved product information before a pilot. {SUBJECT_TO_ZENITH}
@@ -54,7 +54,7 @@ export function AdminProductsPage() {
                   onClick={() => {
                     const next = p.status === "active" ? "inactive" : "active";
                     dispatch({ type: "set_product_status", productId: p.product_id, status: next });
-                    toast(`${p.name} ${next === "active" ? "activated" : "deactivated"} — the engine has updated.`, "info");
+                    toast(`${p.name} ${next === "active" ? "activated" : "deactivated"} — suggestions have updated.`, "info");
                   }}
                   className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line px-3 text-small hover:bg-canvas"
                 >
@@ -79,7 +79,7 @@ export function AdminProductsPage() {
                   )}
                 </div>
                 <div className="min-w-0">
-                  <p className="mb-1 font-semibold">Eligibility the engine checks</p>
+                  <p className="mb-1 font-semibold">Who can get it</p>
                   <p className="text-ink-2"><span className="text-ink-3">Published: </span>{published.length ? published.join("; ") : "none"}</p>
                   <p className="mt-1 text-ink-2"><span className="text-ink-3">MoneyMap guardrails: </span>{guardrails.length ? guardrails.join("; ") : "none"}</p>
                 </div>

@@ -1,4 +1,4 @@
-import { ArrowLeft, BarChart3, Database, History, Package, Plug, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, BarChart3, Database, History, Package, Plug, SlidersHorizontal } from "../icons";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { LogoMark } from "../shared/Logo";
 import { SyncBanner } from "../shared/SyncBanner";
@@ -7,7 +7,7 @@ import { ThemeToggle } from "../shared/ThemeToggle";
 const NAV = [
   { to: "/admin", label: "Overview", icon: BarChart3, end: true },
   { to: "/admin/products", label: "Product catalogue", icon: Package },
-  { to: "/admin/engine", label: "Engine & rules", icon: SlidersHorizontal },
+  { to: "/admin/engine", label: "How matching works", icon: SlidersHorizontal },
   { to: "/admin/integrations", label: "Integrations", icon: Plug },
   { to: "/admin/audit", label: "Audit log", icon: History },
 ];
@@ -50,8 +50,8 @@ export function AdminShell() {
 
         <div className="mt-auto flex flex-col gap-3 pb-16">
           <div className="rounded-[14px] border border-white/10 bg-white/[.04] p-3">
-            <p className="flex items-center gap-2 text-[12px] font-medium text-white/80"><Database size={14} aria-hidden className="text-mint" /> Synthetic data</p>
-            <p className="mt-1 text-[12px] leading-relaxed text-white/50">No real customer is shown here. Figures come from the live engine.</p>
+            <p className="flex items-center gap-2 text-[12px] font-medium text-white/80"><Database size={14} aria-hidden className="text-mint" /> Sample data</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-white/50">No real customer is shown here. Figures come from MoneyMap's real matching.</p>
           </div>
           <div className="flex items-center justify-between">
             <Link to="/app" className="inline-flex min-h-10 items-center gap-1.5 rounded-[10px] px-2 text-[13px] font-medium text-white/70 hover:bg-white/10 hover:text-white">

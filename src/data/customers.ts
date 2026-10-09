@@ -16,7 +16,7 @@ const PERSONAS: Omit<PersonaBase, "openingBalance">[] = [
     occupation: "Customer experience officer",
     city: "Lekki, Lagos",
     persona: "The Saver",
-    story: "Steady salary and a monthly surplus — but what she saves stays in the same account she spends from.",
+    story: "Steady salary and money left over each month — but what she saves stays in the same account she spends from.",
     expectedOutcome: "Goal-based savings → SAVE4ME",
     existingProducts: ["current_account", "debit_card"],
     defaultGoal: {

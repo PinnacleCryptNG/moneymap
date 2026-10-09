@@ -1,4 +1,4 @@
-import { ArrowDownLeft, ArrowUpRight, Lock } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Lock } from "../icons";
 import { Link } from "react-router-dom";
 import type { FinancialContext } from "../../engine";
 import { CATEGORY_LABELS } from "../../engine/ledger";

@@ -170,7 +170,7 @@ try {
 
       await page.getByRole("link", { name: /^Why this\?/ }).click();
       await page.getByRole("heading", { name: /Why did MoneyMap recommend/ }).waitFor();
-      for (const label of ["Your goal", "Your financial context", "The product fit", "The timing", "Your data", "Eligibility"]) {
+      for (const label of ["Your goal", "Your money", "The product fit", "The timing", "Your data", "Can you get it?"]) {
         check(`Why section "${label}" (${size})`, await page.getByRole("heading", { name: label, exact: true }).isVisible());
       }
       await healthy(page, `Why this (${size})`);
@@ -179,7 +179,7 @@ try {
       await page.getByRole("heading", { name: "Published information" }).waitFor();
       check(`Product: published info with sources (${size})`, (await page.getByRole("link", { name: /source/ }).count()) >= 1);
       check(`Product: no invented terms (${size})`, await page.getByText("Subject to Zenith Bank's current requirements", { exact: false }).first().isVisible());
-      await page.getByRole("button", { name: "Confirm eligibility" }).click();
+      await page.getByRole("button", { name: "Check if I qualify" }).click();
       await page.getByText(/You appear to meet|need confirming|don't currently meet/).waitFor({ timeout: 5000 });
       await page.getByRole("button", { name: "Request to open" }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click();
@@ -355,8 +355,8 @@ try {
     await session(`Consent (${size})`, viewport, async (page) => {
       await demoLoad(page, "Sarah");
       await go(page, "/app/settings");
-      await page.getByRole("button", { name: "Withdraw all consent" }).click();
-      await page.getByRole("dialog").getByRole("button", { name: "Withdraw all" }).click();
+      await page.getByRole("button", { name: "Turn off all permissions" }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "Turn them all off" }).click();
       await go(page, "/app");
       check(`Withdrawn data shows "Not shared" (${size})`, (await page.getByText("Not shared").count()) >= 4);
       await go(page, "/app/recommendation");

@@ -1,4 +1,4 @@
-import { CloudOff } from "lucide-react";
+import { CloudOff } from "../icons";
 import { useStore } from "../../app/providers/store";
 
 /** API mode: tells the user when the server couldn't be reached. */

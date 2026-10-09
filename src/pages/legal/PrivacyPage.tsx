@@ -9,7 +9,7 @@ export function PrivacyPage() {
       <p className="mb-8 text-ink-3">Last updated 9 October 2026 · Written to follow the Nigeria Data Protection Act 2023.</p>
 
       <div className="mb-8 rounded-[16px] border border-line bg-canvas p-4 text-small text-ink-2">
-        This MoneyMap is a prototype built for the Zenith Bank Zecathon. It runs on <strong>synthetic customers only</strong> — no real customer data is used.
+        This MoneyMap is a prototype built for the Zenith Bank Zecathon. It runs on <strong>made-up sample customers only</strong> — no real customer data is used.
         The policy below describes how MoneyMap would handle your information in a live service operated with Zenith Bank.
       </div>
 

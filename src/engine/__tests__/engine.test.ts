@@ -76,9 +76,9 @@ describe("Phase 2 personas", () => {
     expect(r.top!.score).toBeGreaterThanOrEqual(80);
     expect(r.explanation!.influences.map((i) => i.label)).toEqual([
       "Your goal",
-      "Permitted financial behaviour",
-      "Your current banking relationship",
-      "Product purpose",
+      "How you use your account",
+      "What you already have",
+      "What it's for",
     ]);
     expect(r.explanation!.estimate?.find((e) => e.label === "Suggested monthly saving")?.value).toBe("₦83,333");
   });

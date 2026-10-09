@@ -210,6 +210,16 @@
   }
 }
 
+
+/* MoneyMap icons: one mint "route" accent per icon. On warnings and mint buttons it takes the icon's own colour. */
+:root { --icon-accent: #10b981; }
+:root[data-theme="dark"], .midnight { --icon-accent: #2ee6a8; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --icon-accent: #2ee6a8; } }
+.mm-icon .mm-a { stroke: var(--icon-accent); }
+.mm-icon .mm-af { fill: var(--icon-accent); stroke: none; }
+.mm-icon[class*="text-red"], .mm-icon[class*="text-amber"], .mm-icon[class*="text-alert"], .mm-icon[class*="text-green"], .mm-icon[class*="text-mint"],
+[class*="bg-mint"] .mm-icon, [class*="bg-red"] .mm-icon, [class*="bg-amber"] .mm-icon, [class*="bg-green"] .mm-icon, [class*="text-red"] .mm-icon, [class*="text-amber"] .mm-icon, .mono-icons .mm-icon { --icon-accent: currentColor; }
+
 /* ---------- Motion: purposeful, short, and off for anyone who asks for less motion ---------- */
 @keyframes mm-draw { from { stroke-dashoffset: var(--len, 400); } to { stroke-dashoffset: 0; } }
 .route-draw { stroke-dasharray: var(--len, 400); animation: mm-draw 900ms cubic-bezier(.65, 0, .35, 1) both; }

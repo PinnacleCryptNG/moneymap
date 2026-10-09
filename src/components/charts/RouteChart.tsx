@@ -1,4 +1,4 @@
-import { Flag, MapPin, Sparkles } from "lucide-react";
+import { Flag, MapPin, Sparkles } from "../icons";
 import { useId, useMemo, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { formatNaira, shortNaira } from "../../utils/format";
 import { useWidth } from "../../utils/motion";

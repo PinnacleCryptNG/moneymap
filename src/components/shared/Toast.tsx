@@ -1,4 +1,4 @@
-import { CheckCircle2, Info } from "lucide-react";
+import { CheckCircle2, Info } from "../icons";
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 
 interface ToastItem { id: number; message: string; tone: "success" | "info" }

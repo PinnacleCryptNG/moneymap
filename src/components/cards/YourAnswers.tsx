@@ -1,4 +1,4 @@
-import { MessageSquareText, Pencil } from "lucide-react";
+import { MessageSquareText, Pencil } from "../icons";
 import type { Amount, SelfReport } from "../../types";
 import { formatNaira } from "../../utils/format";
 import { ButtonLink } from "../shared/Button";

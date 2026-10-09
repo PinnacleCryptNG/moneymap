@@ -1,8 +1,8 @@
-import { CloudOff, type LucideIcon } from "lucide-react";
+import { CloudOff, type IconType } from "../icons";
 import type { ReactNode } from "react";
 import { Button } from "./Button";
 
-export function EmptyState({ icon: Icon, title, body, actions }: { icon: LucideIcon; title: string; body: string; actions?: ReactNode }) {
+export function EmptyState({ icon: Icon, title, body, actions }: { icon: IconType; title: string; body: string; actions?: ReactNode }) {
   return (
     <div className="card fade-up flex flex-col items-center px-6 py-12 text-center">
       <span className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-blue">
@@ -34,7 +34,7 @@ export function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`skeleton ${className}`} aria-hidden />;
 }
 
-export function LoadingPanel({ label = "Checking your financial context…" }: { label?: string }) {
+export function LoadingPanel({ label = "Looking at your money…" }: { label?: string }) {
   return (
     <div className="card p-6" role="status" aria-live="polite">
       <span className="sr-only">{label}</span>

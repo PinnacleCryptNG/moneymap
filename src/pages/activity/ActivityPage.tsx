@@ -1,4 +1,4 @@
-import { History, ShieldCheck } from "lucide-react";
+import { History, ShieldCheck } from "../../components/icons";
 import { useStore } from "../../app/providers/store";
 import { Badge } from "../../components/shared/Badge";
 import { ButtonLink } from "../../components/shared/Button";
@@ -68,7 +68,7 @@ export function ActivityPage() {
       )}
 
       <section className="card p-5 md:p-6" aria-labelledby="consent-title">
-        <h2 id="consent-title" className="mb-4 flex items-center gap-2 !text-[20px]"><ShieldCheck size={22} className="text-green-700" aria-hidden /> Consent record</h2>
+        <h2 id="consent-title" className="mb-4 flex items-center gap-2 !text-[20px]"><ShieldCheck size={22} className="text-green-700" aria-hidden /> Permission record</h2>
         <ul className="flex flex-col divide-y divide-line text-small">
           {state.consentLog.map((c) => (
             <li key={c.id} className="flex items-center justify-between gap-3 py-2.5">

@@ -56,7 +56,7 @@ describe("answers in the decision", () => {
     expect(surplus?.evidence).toMatch(/Based on what you told us/);
     expect(r.top?.product.product_id).toBe("ZEN_SAVE4ME");
     expect(r.explanation?.dataUsed).toContain("self_reported");
-    expect(r.trace.find((s) => s.stage === "Financial context")?.result).toMatch(/partly from what you told us/);
+    expect(r.trace.find((s) => s.stage === "Your money")?.result).toMatch(/partly from what you told us/);
   });
 
   it("never override a statement the customer has shared", () => {

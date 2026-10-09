@@ -1,4 +1,4 @@
-import { ArrowLeft, CircleAlert, CircleCheck, CircleHelp, ExternalLink, FileText, Info, Loader2 } from "lucide-react";
+import { ArrowLeft, CircleAlert, CircleCheck, CircleHelp, ExternalLink, FileText, Info, Loader2 } from "../../components/icons";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useStore } from "../../app/providers/store";
@@ -109,7 +109,7 @@ export function ProductDetailPage() {
             </Button>
           )}
           <Button variant="secondary" onClick={runCheck} disabled={checking} icon={checking ? <Loader2 size={18} className="animate-spin" aria-hidden /> : undefined}>
-            {checking ? "Checking…" : "Confirm eligibility"}
+            {checking ? "Checking…" : "Check if I qualify"}
           </Button>
         </div>
       </section>

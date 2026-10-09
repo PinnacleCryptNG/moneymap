@@ -1,4 +1,4 @@
-import { Activity, Bell, Compass, Wallet, Flag, Home, LayoutGrid, Map as MapIcon, Settings, ShieldCheck, User } from "lucide-react";
+import { Activity, Bell, Compass, Wallet, Flag, Home, LayoutGrid, Map as MapIcon, Settings, ShieldCheck, User } from "../icons";
 import { NavLink, Navigate, Outlet, Link, useLocation } from "react-router-dom";
 import { useStore } from "../../app/providers/store";
 import { Logo } from "../shared/Logo";

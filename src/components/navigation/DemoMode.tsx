@@ -1,4 +1,4 @@
-import { ArrowRight, Banknote, Gift, MonitorPlay, RotateCcw, Zap } from "lucide-react";
+import { ArrowRight, Banknote, Gift, MonitorPlay, RotateCcw, Zap } from "../icons";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useStore } from "../../app/providers/store";
@@ -36,7 +36,7 @@ export function DemoPersonaList({ onDone }: { onDone?: () => void }) {
                 icon={<Zap size={16} aria-hidden />}
                 onClick={() => {
                   dispatch({ type: "demo_load", customerId: c.id });
-                  toast(`${c.firstName}'s financial context loaded.`, "info");
+                  toast(`${c.firstName}'s account is ready.`, "info");
                   onDone?.();
                   navigate("/app");
                 }}
@@ -112,7 +112,7 @@ export function DemoModeButton() {
       </button>
       <BottomSheet open={open} onClose={() => setOpen(false)} title="Demo Mode">
         <p className="mb-4 text-small text-ink-3">
-          For the presenting team. Load a synthetic customer's full financial context instantly, so judges can see MoneyMap decide without waiting.
+          For the presenting team. Load a sample customer's whole account in one tap, so judges can see MoneyMap work without waiting.
         </p>
         <div className="max-h-[60vh] overflow-y-auto pr-1">
           <SimulateActivity

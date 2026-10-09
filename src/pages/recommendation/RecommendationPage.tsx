@@ -1,4 +1,4 @@
-import { ArrowRight, CalendarClock, CircleCheck, Sparkles, Target } from "lucide-react";
+import { ArrowRight, CalendarClock, CircleCheck, Sparkles, Target } from "../../components/icons";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useStore } from "../../app/providers/store";
 import { EnginePipeline } from "../../components/recommendations/EnginePipeline";
@@ -178,7 +178,7 @@ export function RecommendationPage() {
       </section>
 
       <p className="text-caption !font-normal text-ink-3">
-        MoneyMap suggests; it never decides for you, approves credit or opens accounts. Product information comes from public sources and is subject to Zenith Bank's current requirements. Model {result.modelVersion}.
+        MoneyMap suggests; it never decides for you, approves credit or opens accounts. Product information comes from public sources and is subject to Zenith Bank's current requirements.
       </p>
     </div>
   );

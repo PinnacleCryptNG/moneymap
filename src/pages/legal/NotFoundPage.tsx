@@ -1,4 +1,4 @@
-import { Compass } from "lucide-react";
+import { Compass } from "../../components/icons";
 import { ButtonLink } from "../../components/shared/Button";
 import { PublicPage } from "./LegalLayout";
 

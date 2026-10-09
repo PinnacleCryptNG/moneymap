@@ -1,4 +1,4 @@
-import { Monitor, Moon, Sun } from "lucide-react";
+import { Monitor, Moon, Sun } from "../icons";
 import { useEffect, useState } from "react";
 
 export type ThemeChoice = "system" | "light" | "dark";

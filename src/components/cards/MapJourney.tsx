@@ -1,4 +1,4 @@
-import { Flag, Footprints, MapPin } from "lucide-react";
+import { Flag, Footprints, MapPin } from "../icons";
 import type { ReactNode } from "react";
 
 interface Props {

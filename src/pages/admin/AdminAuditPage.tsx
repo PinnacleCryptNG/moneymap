@@ -1,4 +1,4 @@
-import { ShieldAlert, ShieldCheck } from "lucide-react";
+import { ShieldAlert, ShieldCheck } from "../../components/icons";
 import { useEffect, useState } from "react";
 import { useStore } from "../../app/providers/store";
 import { Badge } from "../../components/shared/Badge";

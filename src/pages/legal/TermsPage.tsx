@@ -8,7 +8,7 @@ export function TermsPage() {
       <p className="mb-8 text-ink-3">Last updated 9 October 2026</p>
 
       <div className="mb-8 rounded-[16px] border border-line bg-canvas p-4 text-small text-ink-2">
-        This MoneyMap is a prototype built for the Zenith Bank Zecathon, running on synthetic customers. It is not a live banking service.
+        This MoneyMap is a prototype built for the Zenith Bank Zecathon, running on made-up sample customers. It is not a live banking service.
       </div>
 
       <LegalSection title="What MoneyMap is">

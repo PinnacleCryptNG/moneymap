@@ -13,7 +13,7 @@ import {
   ShieldCheck,
   Sparkles,
   Zap,
-} from "lucide-react";
+} from "../../components/icons";
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useStore } from "../../app/providers/store";
@@ -140,7 +140,7 @@ export function LandingPage() {
         <div className="reveal mb-8 max-w-2xl">
           <p className="eyebrow mb-3 !text-green-700">See it decide</p>
           <h2 id="demo-title" className="mb-3 !text-[30px] sm:!text-[40px]">Two customers. Two <span className="accent-serif">honest</span> answers.</h2>
-          <p className="text-[17px] text-ink-2">Real-looking Nigerian accounts, synthetic data. Open either one and watch MoneyMap work.</p>
+          <p className="text-[17px] text-ink-2">Realistic Nigerian accounts, made up for the demo. Open either one and watch MoneyMap work.</p>
         </div>
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           {CUSTOMERS.map((c) => {
@@ -202,7 +202,7 @@ export function LandingPage() {
           <h2 id="why-title" className="!text-[30px] sm:!text-[40px]">The right product, for the <span className="accent-serif">right reason.</span></h2>
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
-          <Feature className="md:col-span-4" icon={<FileSearch size={20} aria-hidden />} title="Reads real statements, not forms" body="A categoriser built for Nigerian bank narrations — NIP, POS, WEB, REMITA, ATM — turns raw lines into income, spending and habits.">
+          <Feature className="md:col-span-4" icon={<FileSearch size={20} aria-hidden />} title="Reads real statements, not forms" body="MoneyMap understands Nigerian bank statement lines — transfers, POS, web payments, ATM — and turns them into income, spending and habits.">
             <div className="mt-4 flex flex-col gap-2 font-mono text-[12.5px]">
               {[
                 ["NIP/BRIGHTPATH LOGISTICS LTD/SALARY", "Salary"],
@@ -239,7 +239,7 @@ export function LandingPage() {
               </button>
             </div>
             <p className="mx-auto mt-10 max-w-2xl text-caption !font-normal text-white/55">
-              Zenith Bank Zecathon 6.0 · Challenge #9 — Intelligent Customer Product Matching. Prototype on synthetic data. Product information comes from public sources and is subject to Zenith Bank's current requirements.
+              Zenith Bank Zecathon 6.0 · Challenge #9 — Intelligent Customer Product Matching. Prototype on sample data. Product information comes from public sources and is subject to Zenith Bank's current requirements.
             </p>
           </div>
         </div>

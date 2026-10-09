@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { X } from "../icons";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { IconButton } from "./Button";
 

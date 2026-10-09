@@ -1,7 +1,7 @@
-import type { LucideIcon } from "lucide-react";
+import type { IconType } from "../icons";
 import type { ReactNode } from "react";
 
-export function InsightCard({ icon: Icon, title, body, meta, tone = "blue" }: { icon: LucideIcon; title: string; body: ReactNode; meta?: ReactNode; tone?: "blue" | "green" | "amber" }) {
+export function InsightCard({ icon: Icon, title, body, meta, tone = "blue" }: { icon: IconType; title: string; body: ReactNode; meta?: ReactNode; tone?: "blue" | "green" | "amber" }) {
   const tones = { blue: "bg-blue-50 text-blue", green: "bg-green-50 text-green-700", amber: "bg-amber-50 text-amber-700" };
   return (
     <article className="card flex gap-4 p-5">

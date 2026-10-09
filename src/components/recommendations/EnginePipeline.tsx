@@ -1,4 +1,4 @@
-import { Check, Circle, Minus } from "lucide-react";
+import { Check, Circle, Minus } from "../icons";
 import { useEffect, useState } from "react";
 import type { TraceStep } from "../../engine";
 

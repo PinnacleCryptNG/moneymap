@@ -1,4 +1,4 @@
-import { Activity, ArrowDownLeft, ArrowUpRight, Car, CreditCard, Gauge, GraduationCap, Lock, PiggyBank, Radar, Smartphone, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { Activity, ArrowDownLeft, ArrowUpRight, Car, CreditCard, Gauge, GraduationCap, Lock, PiggyBank, Radar, Smartphone, TrendingDown, TrendingUp, Wallet } from "../../components/icons";
 import { useStore } from "../../app/providers/store";
 import { InsightCard } from "../../components/cards/InsightCard";
 import { MapJourney } from "../../components/cards/MapJourney";
@@ -30,7 +30,7 @@ const SIGNAL_META: Record<Signal, { title: string; icon: typeof Activity; tone: 
   planned_major_expense: { title: "Planned expense", icon: Wallet, tone: "blue" },
   planned_asset_purchase: { title: "Planned asset purchase", icon: Car, tone: "blue" },
   student_activity: { title: "Student activity", icon: GraduationCap, tone: "blue" },
-  digital_first: { title: "Cashless, app-first banking", icon: Smartphone, tone: "blue" },
+  digital_first: { title: "You mostly pay by card and app", icon: Smartphone, tone: "blue" },
   high_card_spend: { title: "Card-first spending", icon: CreditCard, tone: "blue" },
   no_emergency_buffer: { title: "Thin safety buffer", icon: Gauge, tone: "amber" },
   needs_immediate_liquidity: { title: "Money needed soon", icon: Gauge, tone: "amber" },
@@ -46,7 +46,7 @@ export function MapPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader eyebrow="Your financial map" title="Where you are, and where you could go" body="What MoneyMap understands from the information you've allowed — the signals, the needs they point to, and how products were filtered." />
+      <PageHeader eyebrow="Your financial map" title="Where you are, and where you could go" body="What MoneyMap understands from what you've allowed — what it noticed, what you might need, and how products were filtered." />
 
       <section>
         <MapJourney
@@ -69,12 +69,12 @@ export function MapPage() {
 
       <AccountReading ctx={ctx} />
 
-      <YourAnswers report={state.selfReport} used={ctx.signals.some((sig) => sig.source === "self_reported") || Boolean(result.trace.find((t) => t.stage === "Financial context")?.result.includes("what you told us"))} />
+      <YourAnswers report={state.selfReport} used={ctx.signals.some((sig) => sig.source === "self_reported") || Boolean(result.trace.find((t) => t.stage === "Your money")?.result.includes("what you told us"))} />
 
       <section aria-labelledby="signals-title">
         <h2 id="signals-title" className="mb-3">What your money is telling us</h2>
         {ctx.signals.length === 0 ? (
-          <p className="card p-5 text-ink-3">No signals yet — MoneyMap needs at least some permitted information to understand your patterns.</p>
+          <p className="card p-5 text-ink-3">Nothing to go on yet. Turn on at least one permission so MoneyMap can see how you use your money.</p>
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {ctx.signals.map((s) => {
@@ -86,7 +86,7 @@ export function MapPage() {
                   tone={m.tone}
                   title={m.title}
                   body={s.evidence}
-                  meta={<span className="text-caption !font-normal text-ink-3">Source: {s.source === "self_reported" ? "What you told us" : PERMISSION_COPY[s.source].title} · confidence {Math.round(s.strength * 100)}%</span>}
+                  meta={<span className="text-caption !font-normal text-ink-3">Source: {s.source === "self_reported" ? "What you told us" : PERMISSION_COPY[s.source].title} · {Math.round(s.strength * 100)}% sure</span>}
                 />
               );
             })}
@@ -95,7 +95,7 @@ export function MapPage() {
       </section>
 
       <section aria-labelledby="needs-title" className="card p-5 md:p-6">
-        <h2 id="needs-title" className="mb-1 !text-[20px]">Needs detected</h2>
+        <h2 id="needs-title" className="mb-1 !text-[20px]">What you might need</h2>
         <p className="mb-4 text-small text-ink-3">The need comes before the product.</p>
         {needs.length === 0 ? (
           <p className="text-ink-3">No strong financial need detected right now.</p>
@@ -133,7 +133,7 @@ export function MapPage() {
 
         <section aria-labelledby="tx-title" className="card p-5 md:p-6">
           <h2 id="tx-title" className="mb-1 !text-[20px]">Recent account activity</h2>
-          <p className="mb-4 text-small text-ink-3">Visible only to you. Each line shows the bank's narration and the category MoneyMap read from it.</p>
+          <p className="mb-4 text-small text-ink-3">Visible only to you. Each line is shown as your bank writes it, with the group MoneyMap put it in.</p>
           {ctx.activity ? (
             <ul className="flex flex-col divide-y divide-line">
               {customer.transactions.map((t, i) => (

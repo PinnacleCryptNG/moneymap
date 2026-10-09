@@ -4,7 +4,7 @@ const BAND_LABEL: Record<Band, string> = {
   strong: "Strong match",
   potential: "Potential match",
   low: "Weak match",
-  excluded: "Not eligible",
+  excluded: "You don't qualify",
 };
 
 /** A score is never shown alone — it always carries its band label (spec §22). */

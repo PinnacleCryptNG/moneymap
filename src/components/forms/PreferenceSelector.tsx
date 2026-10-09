@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check } from "../icons";
 import type { Frequency, Preferences, ProductCategory } from "../../types";
 import { CATEGORY_META } from "../../utils/labels";
 

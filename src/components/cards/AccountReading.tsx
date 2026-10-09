@@ -1,4 +1,4 @@
-import { Lock, ReceiptText } from "lucide-react";
+import { Lock, ReceiptText } from "../icons";
 import type { FinancialContext } from "../../engine";
 import { CATEGORY_LABELS } from "../../engine/ledger";
 import { formatNaira } from "../../utils/format";
@@ -28,7 +28,7 @@ export function AccountReading({ ctx }: { ctx: FinancialContext }) {
         <ReceiptText size={22} className="text-blue" aria-hidden /> How MoneyMap read your account
       </h2>
       <p className="mb-5 text-small text-ink-3">
-        {l.transactionCount} transactions from {monthRange(l.months)}, sorted by what each payment was for — from the bank narration alone. Monthly averages.
+        {l.transactionCount} transactions from {monthRange(l.months)}, sorted by what each payment was for — just from how each line is written on your statement. Monthly averages.
       </p>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="min-w-0">
@@ -68,7 +68,7 @@ export function AccountReading({ ctx }: { ctx: FinancialContext }) {
           )}
         </div>
         <div className="min-w-0">
-          <h3 className="mb-3 !text-[16px]">Fixed commitments</h3>
+          <h3 className="mb-3 !text-[16px]">Regular bills</h3>
           {l.spending ? (
             l.spending.recurring.length ? (
               <ul className="flex flex-col gap-2 text-small">
@@ -81,7 +81,7 @@ export function AccountReading({ ctx }: { ctx: FinancialContext }) {
                 <li className="text-caption !font-normal text-ink-3">Payments that repeat at least 5 of 6 months at a steady amount.</li>
               </ul>
             ) : (
-              <p className="text-small text-ink-3">No regular commitments found.</p>
+              <p className="text-small text-ink-3">No regular bills found.</p>
             )
           ) : (
             <NotShared what="Spending patterns" />

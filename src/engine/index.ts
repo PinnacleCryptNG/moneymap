@@ -321,13 +321,13 @@ function assessTiming(p: Product, ctx: FinancialContext): Timing {
       if (ctx.goal?.type === "save_more" && hasSignal(ctx, "regular_surplus"))
         return {
           status: "appropriate",
-          reason: "Your recent financial pattern suggests that setting aside part of your monthly surplus now could support the goal you stated.",
+          reason: "Putting part of what you have left each month aside now would help with your goal.",
         };
       if (hasSignal(ctx, "regular_surplus"))
-        return { status: "appropriate", reason: "You've started building a surplus — a good moment to give it somewhere to go." };
+        return { status: "appropriate", reason: "You've started having money left over each month — a good moment to give it somewhere to go." };
       if (hasSignal(ctx, "no_emergency_buffer"))
         return { status: "appropriate", reason: "Starting a small buffer now protects you before something unexpected happens." };
-      return { status: "early", reason: "A steadier surplus would make this more useful." };
+      return { status: "early", reason: "This helps more once you have money left over most months." };
     }
     case "accounts":
       if (hasSignal(ctx, "student_activity"))
@@ -469,7 +469,7 @@ function evaluateProduct(
         : `You already have this product (${p.name}), so another one wouldn't add anything.`,
     };
   } else if (failed && failed.basis === "published") {
-    exclusion = { rule: "ineligible", reason: `Your current eligibility does not meet the product's published requirements. ${failed.detail}` };
+    exclusion = { rule: "ineligible", reason: `You don't meet the requirements Zenith has published for this product. ${failed.detail}` };
   } else if (failed) {
     exclusion = { rule: "unsuitable", reason: failed.detail };
   } else if (conflicts.includes("needs_immediate_liquidity")) {
@@ -545,13 +545,13 @@ function explain(top: Evaluation, ctx: FinancialContext): Explanation {
   const has = (s: Signal) => top.usedSignals.includes(s);
   let whyItFits = productFit;
   if (p.financial_needs.includes("goal_saving") && goal?.type === "save_more" && has("regular_surplus"))
-    whyItFits = `You have a defined savings goal and a recurring monthly surplus${
+    whyItFits = `You have a savings goal and money left over every month${
       has("savings_in_everyday_account") ? " — but the money you keep sits in your everyday account" : ""
     }. ${p.name} keeps goal money separate from spending money.`;
   else if (p.financial_needs.includes("student_banking"))
     whyItFits = "You're a student who banks almost entirely by card and app, living on a monthly allowance — and Aspire is Zenith's account built for students.";
   else if (p.category === "financing" && goal)
-    whyItFits = `You're planning ${goal.label.toLowerCase()}, your income is steady, and your surplus alone won't cover it in time.`;
+    whyItFits = `You're planning ${goal.label.toLowerCase()}, your income is steady, and what you have left each month won't cover it in time.`;
 
   const relationship = ctx.holdings
     ? ctx.holdings.includes(p.equivalent_holding as never)
@@ -562,14 +562,14 @@ function explain(top: Evaluation, ctx: FinancialContext): Explanation {
   const influences: Influence[] = [];
   if (goal && top.factors.goalFit >= 60) influences.push({ key: "goal", label: "Your goal", detail: goalText ?? goal.label });
   if (top.usedSignals.some((s) => BEHAVIOUR_SIGNALS.includes(s)))
-    influences.push({ key: "behaviour", label: "Permitted financial behaviour", detail: context[0] });
-  influences.push({ key: "relationship", label: "Your current banking relationship", detail: relationship });
-  influences.push({ key: "purpose", label: "Product purpose", detail: `${p.name}: ${p.purpose}.` });
+    influences.push({ key: "behaviour", label: "How you use your account", detail: context[0] });
+  influences.push({ key: "relationship", label: "What you already have", detail: relationship });
+  influences.push({ key: "purpose", label: "What it's for", detail: `${p.name}: ${p.purpose}.` });
 
   const eligibilityText =
     top.eligibility.status === "eligible"
-      ? `Nothing in the published conditions or MoneyMap's checks rules you out. ${top.eligibility.note}`
-      : `Some conditions still need to be confirmed. ${top.eligibility.note}`;
+      ? `Nothing in Zenith's published conditions rules you out. ${top.eligibility.note}`
+      : `Zenith still needs to confirm a few things. ${top.eligibility.note}`;
 
   const nextSteps =
     p.category === "financing"
@@ -585,7 +585,7 @@ function explain(top: Evaluation, ctx: FinancialContext): Explanation {
       { label: "Timeline", value: `${plan.timelineMonths} months` },
       { label: "Suggested monthly saving", value: formatNaira(plan.monthlyContribution) },
     ];
-    if (plan.shareOfSurplus !== null) estimate.push({ label: "Share of your monthly surplus", value: `${Math.round(plan.shareOfSurplus * 100)}%` });
+    if (plan.shareOfSurplus !== null) estimate.push({ label: "Share of what you have left each month", value: `${Math.round(plan.shareOfSurplus * 100)}%` });
     estimateNote = "Simple division of your target over your timeline. Interest is not included because rates are set by Zenith.";
   } else if (p.category === "financing" && goal) {
     const gap = financingGap(ctx);
@@ -637,31 +637,31 @@ function buildTrace(
   return [
     { stage: "Customer", result: `${c.firstName}, ${c.age} · ${c.occupation}`, status: "done" },
     ...(ctx.trigger
-      ? [{ stage: "Trigger", result: `${ctx.trigger.description}: ${formatNaira(ctx.trigger.amount)} arrived — MoneyMap took a fresh look`, status: "done" as const }]
+      ? [{ stage: "What happened", result: `${ctx.trigger.description}: ${formatNaira(ctx.trigger.amount)} arrived — MoneyMap took a fresh look`, status: "done" as const }]
       : []),
-    { stage: "Permitted data", result: `${permitted} of 5 categories allowed`, status: permitted ? "done" : "empty" },
+    { stage: "What you allowed", result: `${permitted} of 5 permissions on`, status: permitted ? "done" : "empty" },
     {
-      stage: "Financial context",
-      result: `${ctxParts.length ? `${ctxParts.join(" · ")} a month · ` : ""}${ctx.signals.length} signals${
+      stage: "Your money",
+      result: `${ctxParts.length ? `${ctxParts.join(" · ")} a month · ` : ""}${ctx.signals.length} things noticed${
         ctx.ledger && (ctx.ledger.income || ctx.ledger.spending || ctx.ledger.activity) ? ` from ${ctx.ledger.transactionCount} transactions` : ""
       }${c.reported && (c.reported.income || c.reported.spending || c.reported.balance) ? " · partly from what you told us" : ""}`,
       status: ctx.signals.length ? "done" : "empty",
     },
     { stage: "Goal", result: ctx.goal ? ctx.goal.label : "No goal shared", status: ctx.goal ? "done" : "empty" },
     {
-      stage: "Need detection",
-      result: needs.length ? `${NEED_LABELS[needs[0].need]} (${needs[0].strength}/100)` : "No clear unmet need",
+      stage: "What you need",
+      result: needs.length ? `${NEED_LABELS[needs[0].need]} (${needs[0].strength}/100)` : "Nothing you're missing",
       status: needs.length ? "done" : "stop",
     },
     {
-      stage: "Product fit",
-      result: `${ranked.length} products checked → ${addressing.length} ${addressing.length === 1 ? "addresses" : "address"} a detected need`,
+      stage: "Products checked",
+      result: `${ranked.length} products checked → ${addressing.length} ${addressing.length === 1 ? "helps" : "help"} with that`,
       status: addressing.length ? "done" : "stop",
     },
     {
-      stage: "Eligibility",
+      stage: "Can you get it",
       result: addressing.length
-        ? `${passed.length} of ${addressing.length} ${addressing.length === 1 ? "passes" : "pass"} published conditions and guardrails`
+        ? `You can get ${passed.length} of ${addressing.length}`
         : "Nothing to check",
       status: passed.length ? "done" : "stop",
     },
@@ -670,12 +670,12 @@ function buildTrace(
       result: top
         ? { appropriate: "Right time", neutral: "No time pressure", early: "Early", not_now: "Not now" }[top.timing.status]
         : passed[0]
-          ? `Best remaining option scored ${passed[0].score} — below the bar`
+          ? `Best other option scored ${passed[0].score}% — not good enough to suggest`
           : "Not reached",
       status: top ? "done" : "stop",
     },
     {
-      stage: "Recommendation",
+      stage: "Suggestion",
       result: top
         ? `${top.product.name} · ${top.score}% match`
         : status === "no_match"

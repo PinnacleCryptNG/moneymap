@@ -1,4 +1,4 @@
-import { BellRing, HelpCircle, ThumbsDown, ThumbsUp, XCircle } from "lucide-react";
+import { BellRing, HelpCircle, ThumbsDown, ThumbsUp, XCircle } from "../icons";
 import type { FeedbackType } from "../../types";
 import { FEEDBACK_LABELS } from "../../utils/labels";
 

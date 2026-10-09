@@ -38,12 +38,12 @@ describe("the engine with a trigger", () => {
     const r = runEngine(input(sarah, { trigger }));
     expect(r.top?.product.product_id).toBe("ZEN_SAVE4ME");
     expect(r.explanation?.whyNow).toMatch(/salary of ₦450,000 has just arrived/);
-    expect(r.trace[1]).toMatchObject({ stage: "Trigger" });
+    expect(r.trace[1]).toMatchObject({ stage: "What happened" });
   });
 
   it("ignores the trigger when income data isn't shared", () => {
     const r = runEngine(input(sarah, { trigger, permissions: { ...ALL, income_patterns: false } }));
-    expect(r.trace.some((s) => s.stage === "Trigger")).toBe(false);
+    expect(r.trace.some((s) => s.stage === "What happened")).toBe(false);
   });
 });
 
