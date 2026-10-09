@@ -264,7 +264,7 @@
 .mm-range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px #071226, 0 0 0 7px #2ee6a8; }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+  *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; transition-delay: 0ms !important; }
   .reveal { opacity: 1; transform: none; }
 }
 @keyframes mm-grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
