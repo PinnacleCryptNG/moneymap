@@ -313,10 +313,18 @@ try {
       await page.getByRole("heading", { level: 1, name: HEADINGS["/privacy"] }).waitFor({ timeout: 5000 });
       check(`Footer link to privacy works (${size})`, (await page.title()).startsWith("Privacy policy"));
       await demoLoad(page, "Sarah");
-      for (const [path, label] of [["/app", "dashboard"], ["/app/map", "map"], ["/app/recommendation", "recommendation"], ["/app/recommendation/why", "why"], ["/app/products", "products"], ["/app/goals", "goals"], ["/app/my-money", "my money"], ["/app/inbox", "messages"], ["/app/activity", "activity"], ["/app/settings", "settings"], ["/admin", "bank view"], ["/admin/integrations", "integrations"]]) {
+      const SCREENS = [["/app", "dashboard"], ["/app/map", "map"], ["/app/recommendation", "recommendation"], ["/app/recommendation/why", "why"], ["/app/products", "products"], ["/app/goals", "goals"], ["/app/my-money", "my money"], ["/app/inbox", "messages"], ["/app/activity", "activity"], ["/app/settings", "settings"], ["/admin", "bank view"], ["/admin/integrations", "integrations"]];
+      for (const [path, label] of SCREENS) {
         await go(page, path);
         await page.waitForTimeout(400);
         await audit(label);
+      }
+      // The same screens in dark mode: every colour has a dark value that must stay readable.
+      await page.emulateMedia({ reducedMotion: "reduce", colorScheme: "dark" });
+      for (const [path, label] of [["/", "landing"], ["/privacy", "privacy"], ["/nowhere", "not found"], ...SCREENS]) {
+        await go(page, path);
+        await page.waitForTimeout(400);
+        await audit(`${label}, dark`);
       }
     }, { bypassCSP: true }); // the audit tool is injected as a script; the app's own CSP would rightly block it
 

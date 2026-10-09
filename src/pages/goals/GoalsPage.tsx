@@ -70,7 +70,7 @@ export function GoalsPage() {
         actions={<Button icon={<Plus size={20} aria-hidden />} onClick={() => setDraft(empty)}>New goal</Button>}
       />
       {!state.permissions.financial_goals && state.goals.length > 0 && (
-        <p className="mb-4 rounded-[12px] border border-[#fbe2b6] bg-amber-50 p-3 text-small text-amber-700">
+        <p className="mb-4 rounded-[12px] border border-amber/40 bg-amber-50 p-3 text-small text-amber-700">
           You haven't allowed MoneyMap to use your financial goals, so they aren't shaping recommendations. You can change this in Settings.
         </p>
       )}
@@ -88,7 +88,7 @@ export function GoalsPage() {
             return (
               <li key={g.id}>
                 <GoalCard goal={g} surplus={surplus}>
-                  <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-mist pt-4">
+                  <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-4">
                     {active ? <Badge tone="green">Active goal</Badge> : (
                       <Button size="sm" variant="secondary" onClick={() => dispatch({ type: "set_active_goal", id: g.id })}>Make active</Button>
                     )}
@@ -132,11 +132,11 @@ export function GoalsPage() {
             )}
             {draftError && (draft.amount || draft.months !== "12") && <p role="alert" className="text-small font-medium text-red">{draftError}</p>}
             {plan && !draftError && (
-              <div className="rounded-[12px] bg-cloud p-4 text-small">
-                <p className="mb-1 text-caption uppercase tracking-wide text-navy-500">Estimate</p>
+              <div className="rounded-[12px] bg-canvas p-4 text-small">
+                <p className="mb-1 text-caption uppercase tracking-wide text-ink-3">Estimate</p>
                 <p>Suggested monthly contribution: <strong>{formatNaira(plan.monthlyContribution)}</strong></p>
                 {plan.shareOfSurplus !== null && (
-                  <p className="text-navy-500">That's about {Math.round(plan.shareOfSurplus * 100)}% of your average monthly surplus.{plan.shareOfSurplus > 1 ? " It may be more than you can comfortably set aside — consider a longer timeline." : ""}</p>
+                  <p className="text-ink-3">That's about {Math.round(plan.shareOfSurplus * 100)}% of your average monthly surplus.{plan.shareOfSurplus > 1 ? " It may be more than you can comfortably set aside — consider a longer timeline." : ""}</p>
                 )}
               </div>
             )}

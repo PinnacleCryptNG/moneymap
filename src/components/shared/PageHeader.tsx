@@ -6,7 +6,7 @@ export function PageHeader({ eyebrow, title, body, actions }: { eyebrow?: string
       <div>
         {eyebrow && <p className="eyebrow mb-1">{eyebrow}</p>}
         <h1>{title}</h1>
-        {body && <p className="mt-2 max-w-2xl text-navy-500">{body}</p>}
+        {body && <p className="mt-2 max-w-2xl text-ink-3">{body}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-3">{actions}</div>}
     </header>

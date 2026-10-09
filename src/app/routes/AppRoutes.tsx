@@ -67,7 +67,7 @@ function PageMeta() {
   return null;
 }
 
-const Loading = () => <p className="p-8 text-center text-navy-500" role="status">Loading…</p>;
+const Loading = () => <p className="p-8 text-center text-ink-3" role="status">Loading…</p>;
 
 export function AppRoutes() {
   return (

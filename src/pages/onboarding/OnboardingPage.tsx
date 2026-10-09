@@ -79,11 +79,11 @@ export function OnboardingPage() {
   const allOn = PERMISSION_ORDER.every((k) => permissions[k]);
 
   return (
-    <div className="min-h-screen bg-cloud">
-      <header className="border-b border-mist bg-white">
+    <div className="min-h-screen bg-canvas">
+      <header className="border-b border-line bg-surface">
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4">
           <Link to="/" aria-label="Back to welcome"><Logo /></Link>
-          <span className="text-small text-navy-500">Building {customer.firstName}'s MoneyMap</span>
+          <span className="text-small text-ink-3">Building {customer.firstName}'s MoneyMap</span>
         </div>
       </header>
 
@@ -91,11 +91,11 @@ export function OnboardingPage() {
         <ol className="mb-8 flex items-center gap-2" aria-label="Progress">
           {STEPS.map((s, i) => (
             <li key={s} className="flex flex-1 items-center gap-2" aria-current={i === step ? "step" : undefined}>
-              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-small font-semibold ${i < step ? "bg-green text-white" : i === step ? "bg-blue text-white" : "bg-white text-navy-500 border border-mist"}`}>
+              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-small font-semibold ${i < step ? "bg-mint text-night" : i === step ? "bg-mint text-night" : "bg-surface text-ink-3 border border-line"}`}>
                 {i < step ? <Check size={16} aria-label="done" /> : i + 1}
               </span>
-              <span className={`hidden text-small font-medium sm:inline ${i === step ? "text-navy" : "text-navy-500"}`}>{s}</span>
-              {i < STEPS.length - 1 && <span className={`h-0.5 flex-1 rounded ${i < step ? "bg-green" : "bg-mist"}`} />}
+              <span className={`hidden text-small font-medium sm:inline ${i === step ? "text-ink" : "text-ink-3"}`}>{s}</span>
+              {i < STEPS.length - 1 && <span className={`h-0.5 flex-1 rounded ${i < step ? "bg-green" : "bg-line"}`} />}
             </li>
           ))}
         </ol>
@@ -103,7 +103,7 @@ export function OnboardingPage() {
         {step === 0 && (
           <section className="fade-up" aria-labelledby="goal-title">
             <h1 id="goal-title" className="mb-2">What are you working towards?</h1>
-            <p className="mb-6 text-navy-500">Start with what you want to achieve. Products come after the need.</p>
+            <p className="mb-6 text-ink-3">Start with what you want to achieve. Products come after the need.</p>
             <fieldset>
               <legend className="sr-only">Choose your goal</legend>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -112,14 +112,14 @@ export function OnboardingPage() {
                   const Icon = m.icon;
                   const on = goalType === t;
                   return (
-                    <label key={t} className={`card flex min-h-16 cursor-pointer items-center gap-3 p-4 transition-colors ${on ? "!border-blue bg-blue-50" : "hover:bg-white/60"}`}>
+                    <label key={t} className={`card flex min-h-16 cursor-pointer items-center gap-3 p-4 transition-colors ${on ? "!border-blue bg-blue-50" : "hover:bg-surface/60"}`}>
                       <input type="radio" name="goal" className="sr-only peer" checked={on} onChange={() => setGoalType(t)} />
-                      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] peer-focus-visible:outline peer-focus-visible:outline-3 peer-focus-visible:outline-blue ${on ? "bg-blue text-white" : "bg-cloud text-navy-700"}`}>
+                      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] peer-focus-visible:outline peer-focus-visible:outline-3 peer-focus-visible:outline-blue ${on ? "bg-mint text-night" : "bg-canvas text-ink-2"}`}>
                         <Icon size={24} aria-hidden />
                       </span>
                       <span className="flex-1">
                         <span className="block font-semibold">{m.label}</span>
-                        <span className="text-small text-navy-500">{m.hint}</span>
+                        <span className="text-small text-ink-3">{m.hint}</span>
                       </span>
                       {on && <Check size={20} className="text-blue" aria-hidden />}
                     </label>
@@ -143,8 +143,8 @@ export function OnboardingPage() {
                   <p role="alert" className="text-small font-medium text-red sm:col-span-2">{goalError}</p>
                 )}
                 {goal && goal.amount > 0 && !goalError && (
-                  <p className="text-small text-navy-500 sm:col-span-2">
-                    Estimate: about <strong className="text-navy">{formatNaira(goalPlan(goal, null).monthlyContribution)}</strong> a month for {goal.timelineMonths} months.
+                  <p className="text-small text-ink-3 sm:col-span-2">
+                    Estimate: about <strong className="text-ink">{formatNaira(goalPlan(goal, null).monthlyContribution)}</strong> a month for {goal.timelineMonths} months.
                   </p>
                 )}
               </div>
@@ -168,12 +168,12 @@ export function OnboardingPage() {
         {step === 1 && (
           <section className="fade-up" aria-labelledby="money-title">
             <h1 id="money-title" className="mb-2">Tell us about your money</h1>
-            <p className="mb-6 text-navy-500">
+            <p className="mb-6 text-ink-3">
               Optional. Answer what you can — ranges and “I'm not sure” are fine. MoneyMap uses your answers wherever you don't share your Zenith account, and always says when a figure came from you.
             </p>
             <MoneyQuestions draft={money} onChange={setMoney} existingGoals={goal ? [{ label: goal.label }] : []} />
             {moneyErrors.length > 0 && (
-              <ul role="alert" className="mt-4 flex list-disc flex-col gap-1 rounded-[12px] border border-[#f4cccc] bg-red-50 p-4 pl-8 text-small text-red">
+              <ul role="alert" className="mt-4 flex list-disc flex-col gap-1 rounded-[12px] border border-red/30 bg-red-50 p-4 pl-8 text-small text-red">
                 {moneyErrors.map((e) => <li key={e}>{e}</li>)}
               </ul>
             )}
@@ -207,8 +207,8 @@ export function OnboardingPage() {
         {step === 2 && (
           <section className="fade-up" aria-labelledby="consent-title">
             <h1 id="consent-title" className="mb-2">Choose what MoneyMap can use</h1>
-            <p className="mb-2 text-body-lg text-navy-700">Let MoneyMap understand your financial habits.</p>
-            <p className="mb-6 text-navy-500">
+            <p className="mb-2 text-body-lg text-ink-2">Let MoneyMap understand your financial habits.</p>
+            <p className="mb-6 text-ink-3">
               MoneyMap can use selected information from your banking activity to make more relevant recommendations. The more context you give, the more relevant your recommendations can become. You can change this any time.
             </p>
             <div className="mb-3 flex justify-end">
@@ -230,9 +230,9 @@ export function OnboardingPage() {
                 />
               ))}
             </div>
-            <div className="mt-5 rounded-[16px] border border-mist bg-white p-4">
+            <div className="mt-5 rounded-[16px] border border-line bg-surface p-4">
               <p className="mb-2 flex items-center gap-2 font-semibold"><ShieldCheck size={18} className="text-green-700" aria-hidden /> Our promise</p>
-              <ul className="flex list-disc flex-col gap-1 pl-5 text-small text-navy-700">
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-small text-ink-2">
                 <li>We never use data you haven't allowed. Withdrawing a permission stops its use straight away.</li>
                 <li>We work from monthly patterns. We never see your PIN, passwords or full card details.</li>
                 <li>MoneyMap never moves your money, never decides for you, and never guarantees a financial outcome.</li>
@@ -279,8 +279,8 @@ export function OnboardingPage() {
                 <dl className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
                   {items.map((t) => (
                     <div key={t.label} className="card p-4">
-                      <dt className="text-small text-navy-500">{t.label}</dt>
-                      <dd className={`text-[18px] font-semibold ${t.value === "Not shared" ? "text-navy-500" : ""}`}>{t.value}</dd>
+                      <dt className="text-small text-ink-3">{t.label}</dt>
+                      <dd className={`text-[18px] font-semibold ${t.value === "Not shared" ? "text-ink-3" : ""}`}>{t.value}</dd>
                     </div>
                   ))}
                 </dl>
@@ -288,7 +288,7 @@ export function OnboardingPage() {
             })()}
 
             {preview.status === "recommended" && preview.top ? (
-              <div className="rounded-[24px] bg-navy p-6 text-white md:p-8">
+              <div className="rounded-[24px] bg-night p-6 text-white md:p-8">
                 <p className="mb-2 flex items-center gap-2 text-caption uppercase tracking-wider text-white/70">
                   <Sparkles size={16} aria-hidden /> Your next opportunity
                 </p>
@@ -299,7 +299,7 @@ export function OnboardingPage() {
               <div className="card p-6 md:p-8">
                 <p className="eyebrow mb-2">Your next opportunity</p>
                 <h2 className="mb-2">Nothing needs your attention.</h2>
-                <p className="mb-6 text-navy-500">{preview.message}</p>
+                <p className="mb-6 text-ink-3">{preview.message}</p>
                 <Button onClick={() => finish("/app/map")}>Review my financial map</Button>
               </div>
             )}

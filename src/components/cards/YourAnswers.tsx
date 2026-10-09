@@ -15,7 +15,7 @@ export function YourAnswers({ report, used }: { report: SelfReport | null; used:
       <section className="card flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between md:p-6" aria-labelledby="answers-title">
         <div>
           <h2 id="answers-title" className="!text-[20px]">Prefer to tell us yourself?</h2>
-          <p className="text-small text-navy-500">Add your other accounts, side income or expenses — exact amounts, ranges or “I'm not sure”.</p>
+          <p className="text-small text-ink-3">Add your other accounts, side income or expenses — exact amounts, ranges or “I'm not sure”.</p>
         </div>
         <ButtonLink to="/app/my-money" variant="secondary" size="sm">Answer a few questions</ButtonLink>
       </section>
@@ -37,15 +37,15 @@ export function YourAnswers({ report, used }: { report: SelfReport | null; used:
         <h2 id="answers-title" className="flex items-center gap-2 !text-[20px]"><MessageSquareText size={20} className="text-blue" aria-hidden /> What you told us</h2>
         <ButtonLink to="/app/my-money" variant="tertiary" size="sm" icon={<Pencil size={16} aria-hidden />}>Edit answers</ButtonLink>
       </div>
-      <p className="mb-3 text-small text-navy-500">
+      <p className="mb-3 text-small text-ink-3">
         {used
           ? "Some of the figures on your map come from these answers, because you haven't shared that part of your Zenith account."
           : "Your shared Zenith account covers these figures, so MoneyMap is using your statement instead. Your answers are kept for reference."}
       </p>
       <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
         {rows.map(([k, v], i) => (
-          <div key={`${k}-${i}`} className="flex justify-between gap-3 border-b border-mist py-1.5 text-small">
-            <dt className="text-navy-700">{k}</dt>
+          <div key={`${k}-${i}`} className="flex justify-between gap-3 border-b border-line py-1.5 text-small">
+            <dt className="text-ink-2">{k}</dt>
             <dd className="font-medium tabular-nums">{v}</dd>
           </div>
         ))}

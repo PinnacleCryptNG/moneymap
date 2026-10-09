@@ -11,7 +11,7 @@ function monthRange(months: string[]) {
 
 function NotShared({ what }: { what: string }) {
   return (
-    <p className="flex items-center gap-2 text-small text-navy-500">
+    <p className="flex items-center gap-2 text-small text-ink-3">
       <Lock size={14} aria-hidden /> {what} not shared
     </p>
   );
@@ -27,7 +27,7 @@ export function AccountReading({ ctx }: { ctx: FinancialContext }) {
       <h2 id="reading-title" className="mb-1 flex items-center gap-2 !text-[20px]">
         <ReceiptText size={22} className="text-blue" aria-hidden /> How MoneyMap read your account
       </h2>
-      <p className="mb-5 text-small text-navy-500">
+      <p className="mb-5 text-small text-ink-3">
         {l.transactionCount} transactions from {monthRange(l.months)}, sorted by what each payment was for — from the bank narration alone. Monthly averages.
       </p>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -41,7 +41,7 @@ export function AccountReading({ ctx }: { ctx: FinancialContext }) {
                   <span className="font-semibold tabular-nums text-green-700">{formatNaira(s.monthlyAverage)}</span>
                 </li>
               ))}
-              {l.income.employer && <li className="text-caption !font-normal text-navy-500">Salary from {l.income.employer} · {l.income.mainCreditCount} payments found</li>}
+              {l.income.employer && <li className="text-caption !font-normal text-ink-3">Salary from {l.income.employer} · {l.income.mainCreditCount} payments found</li>}
             </ul>
           ) : (
             <NotShared what="Income patterns" />
@@ -57,7 +57,7 @@ export function AccountReading({ ctx }: { ctx: FinancialContext }) {
                     <span>{CATEGORY_LABELS[c.category]}</span>
                     <span className="tabular-nums">{formatNaira(c.monthlyAverage)}</span>
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-mist" role="img" aria-label={`${Math.round(c.share * 100)}% of spending`}>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-line" role="img" aria-label={`${Math.round(c.share * 100)}% of spending`}>
                     <div className="h-full rounded-full bg-blue" style={{ width: `${(c.monthlyAverage / maxSpend) * 100}%` }} />
                   </div>
                 </li>
@@ -78,10 +78,10 @@ export function AccountReading({ ctx }: { ctx: FinancialContext }) {
                     <span className="shrink-0 tabular-nums">{formatNaira(r.monthlyAverage)}</span>
                   </li>
                 ))}
-                <li className="text-caption !font-normal text-navy-500">Payments that repeat at least 5 of 6 months at a steady amount.</li>
+                <li className="text-caption !font-normal text-ink-3">Payments that repeat at least 5 of 6 months at a steady amount.</li>
               </ul>
             ) : (
-              <p className="text-small text-navy-500">No regular commitments found.</p>
+              <p className="text-small text-ink-3">No regular commitments found.</p>
             )
           ) : (
             <NotShared what="Spending patterns" />

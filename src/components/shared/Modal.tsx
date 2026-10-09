@@ -29,11 +29,11 @@ export function Modal({ open, onClose, title, children, variant = "dialog" }: Mo
       aria-labelledby={titleId}
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
-      className={`m-0 max-h-[90vh] w-full max-w-none bg-transparent p-0 backdrop:bg-navy/40 ${
+      className={`m-0 max-h-[90vh] w-full max-w-none bg-transparent p-0 backdrop:bg-night/50 backdrop:backdrop-blur-sm ${
         sheet ? "mt-auto sm:m-auto sm:max-w-lg" : "m-auto max-w-lg px-4"
       }`}
     >
-      <div className={`fade-up bg-white p-6 shadow-xl ${sheet ? "rounded-t-[24px] sm:rounded-[24px]" : "rounded-[24px]"}`}>
+      <div className={`fade-up border border-line bg-surface p-6 shadow-xl ${sheet ? "rounded-t-[24px] sm:rounded-[24px]" : "rounded-[24px]"}`}>
         <div className="mb-4 flex items-start justify-between gap-4">
           <h2 id={titleId} className="!text-[20px] !leading-7">{title}</h2>
           <IconButton label="Close" onClick={onClose} className="-mr-2 -mt-2">

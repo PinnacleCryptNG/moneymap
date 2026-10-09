@@ -1,14 +1,14 @@
 import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 
 const control =
-  "w-full min-h-12 rounded-[10px] border border-mist bg-white px-3.5 text-navy placeholder:text-navy-500/70 focus:border-blue focus:outline-none focus:ring-3 focus:ring-blue/20";
+  "w-full min-h-12 rounded-[10px] border border-line bg-surface px-3.5 text-ink placeholder:text-ink-3/70 focus:border-blue focus:outline-none focus:ring-3 focus:ring-blue/20";
 
 function Wrap({ id, label, hint, children }: { id: string; label: string; hint?: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-small font-medium text-navy">{label}</label>
+      <label htmlFor={id} className="text-small font-medium text-ink">{label}</label>
       {children}
-      {hint && <p id={`${id}-hint`} className="text-caption !font-normal text-navy-500">{hint}</p>}
+      {hint && <p id={`${id}-hint`} className="text-caption !font-normal text-ink-3">{hint}</p>}
     </div>
   );
 }
@@ -18,7 +18,7 @@ export function Input({ label, hint, prefix, ...rest }: InputHTMLAttributes<HTML
   return (
     <Wrap id={id} label={label} hint={hint}>
       <div className="relative">
-        {prefix && <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-navy-500">{prefix}</span>}
+        {prefix && <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-3">{prefix}</span>}
         <input id={id} aria-describedby={hint ? `${id}-hint` : undefined} className={`${control} ${prefix ? "pl-8" : ""}`} {...rest} />
       </div>
     </Wrap>

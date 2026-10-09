@@ -5,14 +5,14 @@ type Variant = "primary" | "secondary" | "tertiary" | "danger" | "ghost";
 type Size = "md" | "sm";
 
 const base =
-  "inline-flex items-center justify-center gap-2 font-semibold rounded-[10px] transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed select-none whitespace-nowrap";
+  "inline-flex items-center justify-center gap-2 font-semibold rounded-[12px] transition-[background-color,box-shadow,transform,color] duration-150 active:scale-[.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 select-none whitespace-nowrap";
 const variants: Record<Variant, string> = {
-  // #0F63D6 keeps white text above 4.5:1 (#1677FF was 4.1:1).
-  primary: "bg-blue-600 text-white hover:bg-[#0b51b3] active:bg-[#0b51b3]",
-  secondary: "bg-blue-50 text-blue-600 hover:bg-[#dbe9ff]",
+  // Mint with midnight text: the one bright action on a screen (contrast above 12:1 in both themes).
+  primary: "bg-mint text-night shadow-[0_8px_24px_-10px_rgb(46_230_168/0.65)] hover:bg-mint-600 hover:shadow-[0_10px_28px_-10px_rgb(46_230_168/0.8)]",
+  secondary: "bg-ink/[.06] text-ink hover:bg-ink/10",
   tertiary: "bg-transparent text-blue-600 hover:bg-blue-50",
-  danger: "bg-red-50 text-red hover:bg-[#f8dddd]",
-  ghost: "bg-white text-navy border border-mist hover:bg-cloud",
+  danger: "bg-red-50 text-red hover:bg-red/15",
+  ghost: "bg-surface text-ink border border-line hover:bg-canvas",
 };
 const sizes: Record<Size, string> = {
   md: "min-h-12 px-5 text-[16px]",
@@ -68,7 +68,7 @@ export function IconButton({ label, children, className = "", type = "button", .
       type={type}
       aria-label={label}
       title={label}
-      className={`inline-flex h-11 w-11 items-center justify-center rounded-[10px] text-navy-500 hover:bg-cloud hover:text-navy ${className}`}
+      className={`inline-flex h-11 w-11 items-center justify-center rounded-[10px] text-ink-3 hover:bg-canvas hover:text-ink ${className}`}
       {...rest}
     >
       {children}

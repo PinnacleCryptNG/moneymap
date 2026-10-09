@@ -11,14 +11,14 @@ export function ProductCard({ product, evaluation }: { product: Product; evaluat
   return (
     <Link
       to={`/app/products/${product.product_id}`}
-      className="card group flex h-full flex-col p-5 transition-shadow hover:shadow-md"
+      className="card card-hover group flex h-full flex-col p-5"
     >
       <div className="mb-3 flex items-start justify-between gap-3">
         <span className="flex h-11 w-11 items-center justify-center rounded-[12px] bg-blue-50 text-blue"><Icon size={24} aria-hidden /></span>
         {evaluation && <FitBadge evaluation={evaluation} />}
       </div>
       <h3 className="mb-1 !text-[18px]">{product.name}</h3>
-      <p className="mb-4 flex-1 text-small text-navy-500">{product.purpose}</p>
+      <p className="mb-4 flex-1 text-small text-ink-3">{product.purpose}</p>
       <span className="inline-flex items-center gap-1 text-small font-semibold text-blue-600">
         View details <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" aria-hidden />
       </span>

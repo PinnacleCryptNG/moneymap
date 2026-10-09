@@ -14,9 +14,9 @@ const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "�
 function Stat({ label, value, note, tone }: { label: string; value: string; note: string; tone?: "green" | "amber" }) {
   return (
     <div className="card p-4 md:p-5">
-      <dt className="text-small text-navy-500">{label}</dt>
+      <dt className="text-small text-ink-3">{label}</dt>
       <dd className={`text-[28px] font-bold leading-9 tabular-nums ${tone === "green" ? "text-green-700" : tone === "amber" ? "text-amber-700" : ""}`}>{value}</dd>
-      <dd className="text-caption !font-normal text-navy-500">{note}</dd>
+      <dd className="text-caption !font-normal text-ink-3">{note}</dd>
     </div>
   );
 }
@@ -48,17 +48,17 @@ export function AdminOverviewPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.5fr_1fr]">
         <section tabIndex={0} className="card overflow-x-auto p-5 md:p-6 focus:outline-none focus-visible:ring-3 focus-visible:ring-blue/40" aria-labelledby="match-title">
           <h2 id="match-title" className="mb-1 !text-[20px]">Which products meet which needs</h2>
-          <p className="mb-4 text-small text-navy-500">Recommendations by product and the need that triggered them.</p>
+          <p className="mb-4 text-small text-ink-3">Recommendations by product and the need that triggered them.</p>
           <table className="w-full min-w-[560px] text-small">
             <thead>
-              <tr className="text-left text-navy-500">
+              <tr className="text-left text-ink-3">
                 <th scope="col" className="pb-2 font-medium">Product</th>
                 {needsUsed.map((n) => <th key={n} scope="col" className="pb-2 pl-3 font-medium">{NEED_LABELS[n]}</th>)}
                 <th scope="col" className="pb-2 pl-3 text-right font-medium">Total</th>
                 <th scope="col" className="pb-2 pl-3 text-right font-medium">Useful</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-mist">
+            <tbody className="divide-y divide-line">
               {m.products.map((p) => (
                 <tr key={p.product.product_id}>
                   <th scope="row" className="py-2.5 pr-2 text-left font-medium">
@@ -66,7 +66,7 @@ export function AdminOverviewPage() {
                     {p.product.status !== "active" && <span className="ml-2"><Badge>Inactive</Badge></span>}
                   </th>
                   {needsUsed.map((n) => (
-                    <td key={n} className="py-2.5 pl-3 tabular-nums">{p.needs[n] ? p.needs[n] : <span className="text-navy-500">·</span>}</td>
+                    <td key={n} className="py-2.5 pl-3 tabular-nums">{p.needs[n] ? p.needs[n] : <span className="text-ink-3">·</span>}</td>
                   ))}
                   <td className="py-2.5 pl-3 text-right font-semibold tabular-nums">{p.recommended}</td>
                   <td className="py-2.5 pl-3 text-right tabular-nums">{pct(p.useful, p.recommended)}</td>
@@ -75,7 +75,7 @@ export function AdminOverviewPage() {
             </tbody>
           </table>
           {m.products.some((p) => p.recommended === 0 && p.product.status === "active") && (
-            <p className="mt-3 flex items-start gap-2 text-small text-navy-500">
+            <p className="mt-3 flex items-start gap-2 text-small text-ink-3">
               <Info size={16} className="mt-0.5 shrink-0" aria-hidden /> A product with no recommendations wasn't the best fit for anyone in this cohort. That's a signal to review, not to push it harder.
             </p>
           )}
@@ -83,22 +83,22 @@ export function AdminOverviewPage() {
 
         <section className="card p-5 md:p-6" aria-labelledby="rel-title">
           <h2 id="rel-title" className="mb-1 !text-[20px]">Customer relevance</h2>
-          <p className="mb-4 text-small text-navy-500">What customers told MoneyMap about its recommendations.</p>
+          <p className="mb-4 text-small text-ink-3">What customers told MoneyMap about its recommendations.</p>
           <ul className="flex flex-col gap-3">
             {[
               ["Useful", m.useful, "bg-green"],
               ["Not relevant", m.notRelevant, "bg-amber"],
               ["I don't want this", m.rejected, "bg-red"],
               ["Remind me later", m.remindLater, "bg-blue"],
-              ["I don't understand", m.notUnderstood, "bg-navy-500"],
+              ["I don't understand", m.notUnderstood, "bg-ink-3"],
             ].map(([label, n, color]) => (
               <li key={label as string}>
-                <div className="mb-1 flex justify-between text-small"><span>{label}</span><span className="tabular-nums text-navy-500">{pct(n as number, m.generated)}</span></div>
-                <div className="h-2 overflow-hidden rounded-full bg-mist"><div className={`h-full rounded-full ${color}`} style={{ width: pct(n as number, m.generated) }} /></div>
+                <div className="mb-1 flex justify-between text-small"><span>{label}</span><span className="tabular-nums text-ink-3">{pct(n as number, m.generated)}</span></div>
+                <div className="h-2 overflow-hidden rounded-full bg-line"><div className={`h-full rounded-full ${color}`} style={{ width: pct(n as number, m.generated) }} /></div>
               </li>
             ))}
           </ul>
-          <p className="mt-4 text-small text-navy-500">Useful recommendation rate is MoneyMap's North Star metric.</p>
+          <p className="mt-4 text-small text-ink-3">Useful recommendation rate is MoneyMap's North Star metric.</p>
         </section>
       </div>
 
@@ -115,13 +115,13 @@ export function AdminOverviewPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section tabIndex={0} className="card overflow-x-auto p-5 md:p-6 focus:outline-none focus-visible:ring-3 focus-visible:ring-blue/40" aria-labelledby="seg-title">
           <h2 id="seg-title" className="mb-1 !text-[20px]">By customer group</h2>
-          <p className="mb-4 text-small text-navy-500">Each synthetic customer gets varied goals, so even well-served customers sometimes have a genuine new need.</p>
+          <p className="mb-4 text-small text-ink-3">Each synthetic customer gets varied goals, so even well-served customers sometimes have a genuine new need.</p>
           <table className="w-full min-w-[380px] text-small">
-            <thead><tr className="text-left text-navy-500"><th scope="col" className="pb-2 font-medium">Customer group</th><th scope="col" className="pb-2 font-medium">Most matched product</th><th scope="col" className="pb-2 text-right font-medium">Got a match</th></tr></thead>
-            <tbody className="divide-y divide-mist">
+            <thead><tr className="text-left text-ink-3"><th scope="col" className="pb-2 font-medium">Customer group</th><th scope="col" className="pb-2 font-medium">Most matched product</th><th scope="col" className="pb-2 text-right font-medium">Got a match</th></tr></thead>
+            <tbody className="divide-y divide-line">
               {m.segments.map((s) => (
                 <tr key={s.archetype}>
-                  <th scope="row" className="py-2.5 text-left font-medium">{s.archetype} <span className="font-normal text-navy-500">({s.customers})</span></th>
+                  <th scope="row" className="py-2.5 text-left font-medium">{s.archetype} <span className="font-normal text-ink-3">({s.customers})</span></th>
                   <td className="py-2.5">{s.topProduct}</td>
                   <td className="py-2.5 text-right tabular-nums">{Math.round(s.matchRate * 100)}%</td>
                 </tr>
@@ -163,15 +163,15 @@ export function VisitsSection() {
   return (
     <section className="card p-5 md:p-6" aria-labelledby="visits-title">
       <h2 id="visits-title" className="mb-1 !text-[20px]">Public page visits · last 30 days</h2>
-      <p className="mb-4 text-small text-navy-500">Counted without cookies, IP addresses or identifiers, and never on customers' financial screens. Browsers that send Do Not Track aren't counted.</p>
+      <p className="mb-4 text-small text-ink-3">Counted without cookies, IP addresses or identifiers, and never on customers' financial screens. Browsers that send Do Not Track aren't counted.</p>
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-[12px] bg-cloud p-3">
-          <dt className="text-small text-navy-500">All public pages</dt>
+        <div className="rounded-[12px] bg-canvas p-3">
+          <dt className="text-small text-ink-3">All public pages</dt>
           <dd className="text-[22px] font-bold tabular-nums">{data?.total ?? "—"}</dd>
         </div>
         {(data?.by_page ?? []).map((p) => (
-          <div key={p.path} className="rounded-[12px] bg-cloud p-3">
-            <dt className="text-small text-navy-500">{NAMES[p.path]}</dt>
+          <div key={p.path} className="rounded-[12px] bg-canvas p-3">
+            <dt className="text-small text-ink-3">{NAMES[p.path]}</dt>
             <dd className="text-[22px] font-bold tabular-nums">{p.visits}</dd>
           </div>
         ))}
@@ -190,7 +190,7 @@ function LiveSection() {
   return (
     <section className="card p-5 md:p-6" aria-labelledby="live-title">
       <h2 id="live-title" className="mb-1 !text-[20px]">{API_MODE ? "Live from the MoneyMap server" : "This session (live)"}</h2>
-      <p className="mb-4 text-small text-navy-500">
+      <p className="mb-4 text-small text-ink-3">
         {API_MODE
           ? "Every recommendation stored on the server, across all customers — the feedback store that feeds quality analysis."
           : "Real events from the customer app in this browser — the feedback store that feeds quality analysis."}
@@ -198,17 +198,17 @@ function LiveSection() {
       {API_MODE && server && (
         <dl className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
           {(["generated", "accepted", "useful", "dismissed", "rejected"] as const).map((k) => (
-            <div key={k} className="rounded-[12px] bg-cloud p-3">
-              <dt className="text-small capitalize text-navy-500">{k}</dt>
+            <div key={k} className="rounded-[12px] bg-canvas p-3">
+              <dt className="text-small capitalize text-ink-3">{k}</dt>
               <dd className="text-[22px] font-bold tabular-nums">{server[k] ?? 0}</dd>
             </div>
           ))}
         </dl>
       )}
       {live.length === 0 ? (
-        <p className="text-navy-500">No recommendations issued yet for the current customer.</p>
+        <p className="text-ink-3">No recommendations issued yet for the current customer.</p>
       ) : (
-        <ul className="flex flex-col divide-y divide-mist text-small">
+        <ul className="flex flex-col divide-y divide-line text-small">
           {live.map((r) => (
             <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
               <span><span className="font-medium">{r.product_name}</span> → {r.customer_id} · {r.match_score}% · need: {r.need ? NEED_LABELS[r.need] : "—"}</span>

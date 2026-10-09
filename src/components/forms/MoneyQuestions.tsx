@@ -144,15 +144,15 @@ export function readDraft(d: MoneyDraft): { report: Omit<SelfReport, "updatedAt"
 // ---------- Inputs ----------
 
 const control =
-  "w-full min-h-12 rounded-[10px] border border-mist bg-white px-3.5 text-navy placeholder:text-navy-500/70 focus:border-blue focus:outline-none focus:ring-3 focus:ring-blue/20";
+  "w-full min-h-12 rounded-[10px] border border-line bg-surface px-3.5 text-ink placeholder:text-ink-3/70 focus:border-blue focus:outline-none focus:ring-3 focus:ring-blue/20";
 
 function NairaInput({ label, display, value, onChange, hideLabel }: { label: string; display?: string; value: string; onChange: (v: string) => void; hideLabel?: boolean }) {
   const id = useId();
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-1">
-      <label htmlFor={id} className={hideLabel ? "sr-only" : "text-caption font-medium text-navy-500"}>{display ?? label}</label>
+      <label htmlFor={id} className={hideLabel ? "sr-only" : "text-caption font-medium text-ink-3"}>{display ?? label}</label>
       <div className="relative">
-        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-navy-500">₦</span>
+        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-3">₦</span>
         <input
           id={id}
           aria-label={display ? label : undefined}
@@ -184,7 +184,7 @@ export function AmountField({ label, value, onChange }: { label: string; value: 
             role="radio"
             aria-checked={value.kind === m.kind}
             onClick={() => set({ kind: m.kind })}
-            className={`min-h-9 rounded-full border px-3 text-small font-medium ${value.kind === m.kind ? "border-blue bg-blue-50 text-blue-600" : "border-mist bg-white text-navy-700 hover:bg-cloud"}`}
+            className={`min-h-9 rounded-full border px-3 text-small font-medium ${value.kind === m.kind ? "border-blue bg-blue-50 text-blue-600" : "border-line bg-surface text-ink-2 hover:bg-canvas"}`}
           >
             {m.label}
           </button>
@@ -194,11 +194,11 @@ export function AmountField({ label, value, onChange }: { label: string; value: 
       {value.kind === "range" && (
         <div className="flex items-end gap-2">
           <NairaInput label={`${label} — from`} display="From" value={value.min} onChange={(v) => set({ min: v })} />
-          <span className="pb-3 text-navy-500" aria-hidden>–</span>
+          <span className="pb-3 text-ink-3" aria-hidden>–</span>
           <NairaInput label={`${label} — to`} display="To" value={value.max} onChange={(v) => set({ max: v })} />
         </div>
       )}
-      {value.kind === "unsure" && <p className="text-caption !font-normal text-navy-500">No problem — MoneyMap won't guess this figure.</p>}
+      {value.kind === "unsure" && <p className="text-caption !font-normal text-ink-3">No problem — MoneyMap won't guess this figure.</p>}
     </div>
   );
 }
@@ -213,7 +213,7 @@ function YesNo({ legend, value, onChange }: { legend: string; value: "yes" | "no
           role="radio"
           aria-checked={value === v}
           onClick={() => onChange(v)}
-          className={`min-h-11 min-w-20 rounded-[10px] border px-4 font-medium ${value === v ? "border-blue bg-blue-50 text-blue-600" : "border-mist bg-white text-navy-700 hover:bg-cloud"}`}
+          className={`min-h-11 min-w-20 rounded-[10px] border px-4 font-medium ${value === v ? "border-blue bg-blue-50 text-blue-600" : "border-line bg-surface text-ink-2 hover:bg-canvas"}`}
         >
           {v === "yes" ? "Yes" : "No"}
         </button>
@@ -227,7 +227,7 @@ function Question({ n, title, hint, children }: { n: number; title: string; hint
     <section className="card flex flex-col gap-4 p-5 md:p-6" aria-labelledby={`q${n}`}>
       <div>
         <h2 id={`q${n}`} className="!text-[20px]">{title}</h2>
-        {hint && <p className="mt-1 text-small text-navy-500">{hint}</p>}
+        {hint && <p className="mt-1 text-small text-ink-3">{hint}</p>}
       </div>
       {children}
     </section>
@@ -235,7 +235,7 @@ function Question({ n, title, hint, children }: { n: number; title: string; hint
 }
 
 const RemoveButton = ({ label, onClick }: { label: string; onClick: () => void }) => (
-  <button type="button" aria-label={label} onClick={onClick} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-navy-500 hover:bg-cloud">
+  <button type="button" aria-label={label} onClick={onClick} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-3 hover:bg-canvas">
     <X size={18} aria-hidden />
   </button>
 );
@@ -268,11 +268,11 @@ export function MoneyQuestions({
           {ACCOUNT_KINDS.map(({ kind, label }) => {
             const a = draft.accounts[kind];
             return (
-              <div key={kind} className={`rounded-[12px] border p-3 ${a.on ? "border-blue/40 bg-blue-50/30" : "border-mist"}`}>
+              <div key={kind} className={`rounded-[12px] border p-3 ${a.on ? "border-blue/40 bg-blue-50/30" : "border-line"}`}>
                 <label className="flex min-h-11 cursor-pointer items-center gap-3 font-medium">
                   <input
                     type="checkbox"
-                    className="h-5 w-5 accent-[#1677FF]"
+                    className="h-5 w-5 accent-green-700"
                     checked={a.on}
                     onChange={(e) => set({ accounts: { ...draft.accounts, [kind]: { ...a, on: e.target.checked } } })}
                   />
@@ -291,7 +291,7 @@ export function MoneyQuestions({
 
       <Question n={2} title={existingGoals.length ? "Any other savings goals?" : "Any savings goals?"} hint="Add as many as you like. Tap a suggestion or write your own.">
         {existingGoals.length > 0 && (
-          <p className="text-small text-navy-500">Already saved: {existingGoals.map((g) => g.label).join(" · ")}</p>
+          <p className="text-small text-ink-3">Already saved: {existingGoals.map((g) => g.label).join(" · ")}</p>
         )}
         <div className="flex flex-wrap gap-2">
           {GOAL_SUGGESTIONS.filter((s) => !draft.newGoals.some((g) => g.label === s.label)).map((s) => (
@@ -299,21 +299,21 @@ export function MoneyQuestions({
               key={s.label}
               type="button"
               onClick={() => set({ newGoals: [...draft.newGoals, s] })}
-              className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-mist bg-white px-3.5 text-small font-medium hover:bg-cloud"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-small font-medium hover:bg-canvas"
             >
               <Plus size={14} aria-hidden /> {formatNaira(Number(s.amount))} for {s.label.toLowerCase()}
             </button>
           ))}
         </div>
         {draft.newGoals.map((g, i) => (
-          <div key={i} className="flex flex-col gap-2 rounded-[12px] border border-mist p-3 sm:flex-row sm:items-end">
+          <div key={i} className="flex flex-col gap-2 rounded-[12px] border border-line p-3 sm:flex-row sm:items-end">
             <div className="flex min-w-0 flex-[2] flex-col gap-1">
-              <label className="text-caption font-medium text-navy-500" htmlFor={`goal-${i}-label`}>What for?</label>
+              <label className="text-caption font-medium text-ink-3" htmlFor={`goal-${i}-label`}>What for?</label>
               <input id={`goal-${i}-label`} className={textInput} value={g.label} placeholder="e.g. School fees" onChange={(e) => set({ newGoals: draft.newGoals.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} />
             </div>
             <NairaInput label="Amount" value={g.amount} onChange={(amount) => set({ newGoals: draft.newGoals.map((x, j) => (j === i ? { ...x, amount } : x)) })} />
             <div className="flex w-full flex-col gap-1 sm:w-28">
-              <label className="text-caption font-medium text-navy-500" htmlFor={`goal-${i}-months`}>In (months)</label>
+              <label className="text-caption font-medium text-ink-3" htmlFor={`goal-${i}-months`}>In (months)</label>
               <input id={`goal-${i}-months`} inputMode="numeric" className={control} value={g.months} onChange={(e) => set({ newGoals: draft.newGoals.map((x, j) => (j === i ? { ...x, months: e.target.value.replace(/[^\d]/g, "") } : x)) })} />
             </div>
             <RemoveButton label={`Remove goal ${g.label || i + 1}`} onClick={() => set({ newGoals: draft.newGoals.filter((_, j) => j !== i) })} />
@@ -336,10 +336,10 @@ export function MoneyQuestions({
         {draft.hasVariable === "yes" && (
           <>
             {draft.variable.map((v, i) => (
-              <div key={i} className="flex flex-col gap-3 rounded-[12px] border border-mist p-3">
+              <div key={i} className="flex flex-col gap-3 rounded-[12px] border border-line p-3">
                 <div className="flex items-end gap-2">
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <label className="text-caption font-medium text-navy-500" htmlFor={`var-${i}`}>Name this income</label>
+                    <label className="text-caption font-medium text-ink-3" htmlFor={`var-${i}`}>Name this income</label>
                     <input id={`var-${i}`} className={textInput} value={v.title} placeholder="e.g. Fashion business" onChange={(e) => set({ variable: draft.variable.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)) })} />
                   </div>
                   {draft.variable.length > 1 && <RemoveButton label={`Remove ${v.title || `income ${i + 1}`}`} onClick={() => set({ variable: draft.variable.filter((_, j) => j !== i) })} />}
@@ -365,7 +365,7 @@ export function MoneyQuestions({
               role="radio"
               aria-checked={draft.expensesMode === mode}
               onClick={() => set({ expensesMode: mode })}
-              className={`min-h-11 rounded-[10px] border px-4 font-medium ${draft.expensesMode === mode ? "border-blue bg-blue-50 text-blue-600" : "border-mist bg-white text-navy-700 hover:bg-cloud"}`}
+              className={`min-h-11 rounded-[10px] border px-4 font-medium ${draft.expensesMode === mode ? "border-blue bg-blue-50 text-blue-600" : "border-line bg-surface text-ink-2 hover:bg-canvas"}`}
             >
               {text}
             </button>
@@ -375,10 +375,10 @@ export function MoneyQuestions({
         {draft.expensesMode === "itemised" && (
           <div className="flex flex-col gap-3">
             {draft.items.map((it, i) => (
-              <div key={i} className="flex flex-col gap-2 rounded-[12px] border border-mist p-3">
+              <div key={i} className="flex flex-col gap-2 rounded-[12px] border border-line p-3">
                 <div className="flex items-center justify-between gap-2">
                   {i < EXPENSE_CATEGORIES.length ? (
-                    <p className="font-medium">{it.category}{it.category === "Rent" && <span className="text-small font-normal text-navy-500"> · paid yearly? Divide by 12</span>}</p>
+                    <p className="font-medium">{it.category}{it.category === "Rent" && <span className="text-small font-normal text-ink-3"> · paid yearly? Divide by 12</span>}</p>
                   ) : (
                     <input aria-label={`Expense ${i + 1} name`} className={textInput} value={it.category} placeholder="e.g. Church offering" onChange={(e) => set({ items: draft.items.map((x, j) => (j === i ? { ...x, category: e.target.value } : x)) })} />
                   )}
@@ -390,7 +390,7 @@ export function MoneyQuestions({
             <AddButton onClick={() => set({ items: [...draft.items, { category: "", amount: blank() }] })}>Add another expense</AddButton>
           </div>
         )}
-        {draft.expensesMode === "unsure" && <p className="text-small text-navy-500">That's fine. If you let MoneyMap read your Zenith account next, it can work this out for you.</p>}
+        {draft.expensesMode === "unsure" && <p className="text-small text-ink-3">That's fine. If you let MoneyMap read your Zenith account next, it can work this out for you.</p>}
       </Question>
     </div>
   );

@@ -31,7 +31,7 @@ export function ProductsPage() {
           </section>
         ))}
       </div>
-      <p className="mt-8 text-caption !font-normal text-navy-500">Prototype catalogue — names, fees and terms are illustrative, not actual Zenith product terms.</p>
+      <p className="mt-8 text-caption !font-normal text-ink-3">Prototype catalogue — names, fees and terms are illustrative, not actual Zenith product terms.</p>
     </div>
   );
 }

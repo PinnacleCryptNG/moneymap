@@ -57,7 +57,7 @@ export function FinancialSnapshot({ ctx, customer }: { ctx: FinancialContext; cu
       value: ctx.income ? (
         <>
           <span className="font-semibold tabular-nums">{formatNaira(ctx.income.average)}</span>
-          <span className="text-navy-500"> / month · {!ctx.income.day ? "from what you told us" : ctx.income.source === "salary" ? "salary" : "allowance"}, {stability}</span>
+          <span className="text-ink-3"> / month · {!ctx.income.day ? "from what you told us" : ctx.income.source === "salary" ? "salary" : "allowance"}, {stability}</span>
         </>
       ) : null,
     },
@@ -66,7 +66,7 @@ export function FinancialSnapshot({ ctx, customer }: { ctx: FinancialContext; cu
       value: ctx.spending ? (
         <>
           <span className="font-semibold tabular-nums">{formatNaira(ctx.spending.average)}</span>
-          <span className="text-navy-500"> / month · incl. {formatNaira(ctx.spending.recurring)} fixed</span>
+          <span className="text-ink-3"> / month · incl. {formatNaira(ctx.spending.recurring)} fixed</span>
         </>
       ) : null,
     },
@@ -77,7 +77,7 @@ export function FinancialSnapshot({ ctx, customer }: { ctx: FinancialContext; cu
       value: ctx.holdings ? (
         <span className="flex flex-wrap gap-1.5">
           {ctx.holdings.map((h) => (
-            <span key={h} className="rounded-full border border-mist bg-cloud px-2.5 py-0.5 text-small">{HOLDING_LABELS[h]}</span>
+            <span key={h} className="rounded-full border border-line bg-canvas px-2.5 py-0.5 text-small">{HOLDING_LABELS[h]}</span>
           ))}
         </span>
       ) : null,
@@ -87,15 +87,15 @@ export function FinancialSnapshot({ ctx, customer }: { ctx: FinancialContext; cu
     <section className="card p-6" aria-labelledby="snap-title">
       <div className="mb-4 flex items-baseline justify-between gap-3">
         <p id="snap-title" className="eyebrow">Where you are</p>
-        <p className="text-caption !font-normal text-navy-500">{customer.occupation} · {customer.city}</p>
+        <p className="text-caption !font-normal text-ink-3">{customer.occupation} · {customer.city}</p>
       </div>
-      <dl className="flex flex-col divide-y divide-mist">
+      <dl className="flex flex-col divide-y divide-line">
         {rows.map((r) => (
           <div key={r.label} className="grid grid-cols-1 gap-1 py-3 first:pt-0 last:pb-0 sm:grid-cols-[150px_1fr] sm:gap-4">
-            <dt className="text-small font-medium text-navy-500">{r.label}</dt>
+            <dt className="text-small font-medium text-ink-3">{r.label}</dt>
             <dd className={`min-w-0 ${r.tone === "green" && r.value ? "font-medium text-green-700" : ""}`}>
               {r.value ?? (
-                <Link to="/app/settings" className="inline-flex min-h-6 items-center gap-1 text-small font-medium text-navy-500 underline-offset-2 hover:underline">
+                <Link to="/app/settings" className="inline-flex min-h-6 items-center gap-1 text-small font-medium text-ink-3 underline-offset-2 hover:underline">
                   <Lock size={14} aria-hidden /> Not shared
                 </Link>
               )}

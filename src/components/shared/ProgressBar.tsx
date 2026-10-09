@@ -7,7 +7,7 @@ export function ProgressBar({ value, label, tone = "green" }: { value: number; l
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(v)}
-      className="h-2.5 w-full overflow-hidden rounded-full bg-mist"
+      className="h-2.5 w-full overflow-hidden rounded-full bg-line"
     >
       <div
         className={`h-full rounded-full transition-[width] duration-500 ease-out ${tone === "green" ? "bg-green" : "bg-blue"}`}

@@ -60,7 +60,7 @@ export function AdminIntegrationsPage() {
         body="MoneyMap sits beside the bank's systems. Each one is behind a small adapter: in this demo they are simulated; in production each points at a Zenith endpoint, with no change to the decision engine."
       />
       {!API_MODE && (
-        <p className="mb-4 rounded-[12px] border border-mist bg-cloud p-3 text-small text-navy-700">
+        <p className="mb-4 rounded-[12px] border border-line bg-canvas p-3 text-small text-ink-2">
           This copy runs entirely in your browser, so every connection is simulated. The hosted server version shows live call counts and health.
         </p>
       )}
@@ -80,9 +80,9 @@ export function AdminIntegrationsPage() {
                 {API_MODE && (failing ? <Badge tone="red">Failing</Badge> : <Badge tone="green">Healthy</Badge>)}
               </div>
               <p className="mb-1 text-small font-medium">{meta.what}</p>
-              <p className="mb-3 text-small text-navy-500">{meta.production}</p>
+              <p className="mb-3 text-small text-ink-3">{meta.production}</p>
               {API_MODE && (
-                <p className="text-caption text-navy-500">
+                <p className="text-caption text-ink-3">
                   {a.calls} calls · {a.failures} failed{a.lastOkAt ? ` · last OK ${formatDateTime(a.lastOkAt)}` : ""}
                   {failing && a.lastError ? ` · last error: ${a.lastError.message}` : ""}
                 </p>
@@ -94,7 +94,7 @@ export function AdminIntegrationsPage() {
 
       <section className="card mb-6 p-5 md:p-6" aria-labelledby="feed-title">
         <h2 id="feed-title" className="mb-2 flex items-center gap-2 !text-[20px]"><Webhook size={20} aria-hidden /> Incoming transactions</h2>
-        <p className="text-small text-navy-700">
+        <p className="text-small text-ink-2">
           Core banking posts each new statement line to <code className="font-mono">POST /api/v1/events/transactions</code>, signed with a shared secret
           (HMAC-SHA256 over timestamp and body, rejected if more than 5 minutes old). The bank's own transaction id makes a repeated delivery harmless.
         </p>
@@ -131,13 +131,13 @@ export function AdminIntegrationsPage() {
             </Button>
           </div>
           {note && <p className="mb-3 text-small text-green-700">{note}</p>}
-          <p className="mb-3 text-small text-navy-500">{status.pending_handoffs} product request(s) waiting to reach Zenith.</p>
+          <p className="mb-3 text-small text-ink-3">{status.pending_handoffs} product request(s) waiting to reach Zenith.</p>
           {status.deliveries.length === 0 ? (
-            <p className="text-small text-navy-500">No messages sent yet. Use Demo Mode → “Salary lands” to trigger one.</p>
+            <p className="text-small text-ink-3">No messages sent yet. Use Demo Mode → “Salary lands” to trigger one.</p>
           ) : (
             <table className="w-full min-w-[560px] text-small">
               <thead>
-                <tr className="text-left text-navy-500">
+                <tr className="text-left text-ink-3">
                   <th scope="col" className="pb-2 font-medium">Time</th>
                   <th scope="col" className="pb-2 font-medium">Customer</th>
                   <th scope="col" className="pb-2 font-medium">Message</th>
@@ -145,10 +145,10 @@ export function AdminIntegrationsPage() {
                   <th scope="col" className="pb-2 font-medium">Reference</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-mist">
+              <tbody className="divide-y divide-line">
                 {status.deliveries.map((d) => (
                   <tr key={d.notification_id}>
-                    <td className="whitespace-nowrap py-2.5 pr-3 text-navy-500">{formatDateTime(d.updated_at)}</td>
+                    <td className="whitespace-nowrap py-2.5 pr-3 text-ink-3">{formatDateTime(d.updated_at)}</td>
                     <td className="py-2.5 pr-3">{d.customer_id}</td>
                     <td className="py-2.5 pr-3">{d.title}</td>
                     <td className="py-2.5 pr-3">

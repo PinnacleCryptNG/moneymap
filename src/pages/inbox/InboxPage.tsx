@@ -14,7 +14,7 @@ export function InboxPage() {
     <div className="flex flex-col gap-6">
       <header>
         <h1>Messages</h1>
-        <p className="max-w-2xl text-navy-500">
+        <p className="max-w-2xl text-ink-3">
           MoneyMap takes a fresh look when money lands in your account. It only messages you when something would genuinely help — at most once a week.
         </p>
       </header>
@@ -25,15 +25,15 @@ export function InboxPage() {
           <EmptyState icon={BellRing} title="No messages yet" body="When MoneyMap has something worth your attention, it will show up here." />
         ) : (
           notifications.map((n) => (
-            <article key={n.id} className={`rounded-[16px] border p-4 md:p-5 ${n.read_at ? "border-mist bg-white" : "border-blue bg-blue-50/50"}`}>
+            <article key={n.id} className={`rounded-[16px] border p-4 md:p-5 ${n.read_at ? "border-line bg-surface" : "border-blue bg-blue-50/50"}`}>
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <BellRing size={18} className="text-blue-600" aria-hidden />
                 <Badge tone={n.kind === "reminder" ? "neutral" : "blue"}>{n.kind === "reminder" ? "Reminder" : "New suggestion"}</Badge>
                 {!n.read_at && <Badge tone="blue">Unread</Badge>}
-                <span className="text-caption text-navy-500">{formatDateTime(n.created_at)}</span>
+                <span className="text-caption text-ink-3">{formatDateTime(n.created_at)}</span>
               </div>
               <h3 className="mb-1">{n.title}</h3>
-              <p className="mb-4 max-w-2xl text-navy-700">{n.body}</p>
+              <p className="mb-4 max-w-2xl text-ink-2">{n.body}</p>
               <div className="flex flex-wrap gap-3">
                 <ButtonLink size="sm" to="/app/recommendation" onClick={() => dispatch({ type: "read_notification", id: n.id })}>
                   See why
@@ -51,18 +51,18 @@ export function InboxPage() {
 
       <section aria-labelledby="noticed-title" className="card p-4 md:p-6">
         <h2 id="noticed-title" className="mb-1">What MoneyMap noticed</h2>
-        <p className="mb-4 text-small text-navy-500">Every time money arrived, and what MoneyMap decided — including when it chose not to message you.</p>
+        <p className="mb-4 text-small text-ink-3">Every time money arrived, and what MoneyMap decided — including when it chose not to message you.</p>
         {triggerEvents.length === 0 ? (
-          <p className="text-small text-navy-500">Nothing yet. MoneyMap looks again when your salary or another sizeable payment lands.</p>
+          <p className="text-small text-ink-3">Nothing yet. MoneyMap looks again when your salary or another sizeable payment lands.</p>
         ) : (
-          <ul className="flex flex-col divide-y divide-mist">
+          <ul className="flex flex-col divide-y divide-line">
             {triggerEvents.map((e) => (
               <li key={e.id} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                 <div className="min-w-0">
                   <p className="font-medium">
                     {e.description} · {formatNaira(e.amount)}
                   </p>
-                  <p className="text-small text-navy-500">{e.reason}</p>
+                  <p className="text-small text-ink-3">{e.reason}</p>
                 </div>
                 <div className="shrink-0">
                   {e.outcome === "notified" ? (

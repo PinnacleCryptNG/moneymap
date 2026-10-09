@@ -2,6 +2,7 @@ import { Activity, Bell, Compass, Wallet, Flag, Home, LayoutGrid, Map as MapIcon
 import { NavLink, Navigate, Outlet, Link, useLocation } from "react-router-dom";
 import { useStore } from "../../app/providers/store";
 import { Logo } from "../shared/Logo";
+import { ThemeToggle } from "../shared/ThemeToggle";
 import { SyncBanner } from "../shared/SyncBanner";
 
 const SIDE = [
@@ -26,27 +27,28 @@ export function TopNavigation() {
   const { customer, state } = useStore();
   const unread = state.notifications.filter((n) => !n.read_at).length;
   return (
-    <header className="sticky top-0 z-30 border-b border-mist bg-white/95 backdrop-blur">
+    <header className="glass sticky top-0 z-30 border-b border-line">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 md:px-6">
         <Link to="/app" aria-label="MoneyMap home"><Logo /></Link>
         <div className="flex items-center gap-2">
-          <Link to="/admin" className="hidden min-h-11 items-center gap-1.5 rounded-[10px] px-3 text-small font-medium text-navy-500 hover:bg-cloud hover:text-navy sm:inline-flex">
+          <Link to="/admin" className="hidden min-h-11 items-center gap-1.5 rounded-[10px] px-3 text-small font-medium text-ink-3 hover:bg-canvas hover:text-ink sm:inline-flex">
             <ShieldCheck size={18} aria-hidden /> Bank view
           </Link>
+          <ThemeToggle />
           <Link
             to="/app/inbox"
-            className="relative flex h-11 w-11 items-center justify-center rounded-full text-navy-700 hover:bg-cloud"
+            className="relative flex h-11 w-11 items-center justify-center rounded-full text-ink-2 hover:bg-ink/[.06]"
             aria-label={unread ? `Messages, ${unread} unread` : "Messages"}
           >
             <Bell size={20} aria-hidden />
             {unread > 0 && (
-              <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red px-1 text-[10px] font-bold text-white" aria-hidden>
+              <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-alert px-1 text-[10px] font-bold text-white" aria-hidden>
                 {unread}
               </span>
             )}
           </Link>
-          <Link to="/app/settings" className="flex min-h-11 items-center gap-2 rounded-full border border-mist py-1 pl-1 pr-3 hover:bg-cloud" aria-label={`Profile: ${customer.name}`}>
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-navy text-small font-semibold text-white" aria-hidden>
+          <Link to="/app/settings" className="flex min-h-11 items-center gap-2 rounded-full border border-line py-1 pl-1 pr-3 hover:bg-canvas" aria-label={`Profile: ${customer.name}`}>
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-mint font-display text-small font-bold text-night" aria-hidden>
               {customer.firstName[0]}
             </span>
             <span className="hidden text-small font-medium sm:inline">{customer.firstName}</span>
@@ -59,7 +61,7 @@ export function TopNavigation() {
 
 export function BottomNavigation() {
   return (
-    <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-30 border-t border-mist bg-white pb-[env(safe-area-inset-bottom)] md:hidden">
+    <nav aria-label="Primary" className="glass fixed inset-x-0 bottom-0 z-30 border-t border-line pb-[env(safe-area-inset-bottom)] md:hidden">
       <ul className="mx-auto grid max-w-md grid-cols-5">
         {BOTTOM.map(({ to, label, icon: Icon, end, primary }) => (
           <li key={to}>
@@ -67,12 +69,12 @@ export function BottomNavigation() {
               to={to}
               end={end}
               className={({ isActive }) =>
-                `flex min-h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${isActive ? "text-blue-600" : "text-navy-500"}`
+                `flex min-h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold ${isActive ? "text-ink" : "text-ink-3"}`
               }
             >
               {({ isActive }) => (
                 <>
-                  <span className={`flex h-8 w-12 items-center justify-center rounded-full ${primary ? (isActive ? "bg-blue text-white" : "bg-blue-50 text-blue-600") : isActive ? "bg-blue-50" : ""}`}>
+                  <span className={`flex h-8 w-12 items-center justify-center rounded-full ${primary ? "bg-mint text-night shadow-[0_6px_16px_-6px_rgb(46_230_168/0.7)]" : isActive ? "bg-ink/[.08]" : ""}`}>
                     <Icon size={20} aria-hidden />
                   </span>
                   {label}
@@ -88,7 +90,7 @@ export function BottomNavigation() {
 
 function SideNavigation() {
   return (
-    <nav aria-label="Sections" className="sticky top-16 hidden h-[calc(100vh-4rem)] w-60 shrink-0 border-r border-mist bg-white px-3 py-6 md:block">
+    <nav aria-label="Sections" className="sticky top-16 hidden h-[calc(100vh-4rem)] w-64 shrink-0 px-4 py-6 md:block">
       <ul className="flex flex-col gap-1">
         {SIDE.map(({ to, label, icon: Icon, end }) => (
           <li key={to}>
@@ -96,8 +98,10 @@ function SideNavigation() {
               to={to}
               end={end}
               className={({ isActive }) =>
-                `flex min-h-11 items-center gap-3 rounded-[10px] px-3 font-medium transition-colors ${
-                  isActive ? "bg-blue-50 text-blue-600" : "text-navy-700 hover:bg-cloud"
+                `relative flex min-h-11 items-center gap-3 rounded-[12px] px-3 font-medium transition-colors ${
+                  isActive
+                    ? "bg-surface text-ink shadow-[var(--shadow-card)] ring-1 ring-line before:absolute before:left-0 before:top-2.5 before:h-6 before:w-1 before:rounded-r-full before:bg-mint"
+                    : "text-ink-2 hover:bg-ink/[.05] hover:text-ink"
                 }`
               }
             >
@@ -107,10 +111,10 @@ function SideNavigation() {
           </li>
         ))}
       </ul>
-      <div className="mt-8 rounded-[16px] bg-cloud p-4 text-small text-navy-700">
-        <p className="mb-1 font-semibold text-navy">Your data. Your permission. Your map.</p>
-        <p className="mb-2">You decide what MoneyMap can use.</p>
-        <Link to="/app/settings" className="font-semibold text-blue-600 hover:underline">Manage permissions</Link>
+      <div className="midnight relative mt-8 overflow-hidden rounded-[20px] p-4 text-small">
+        <p className="mb-1 font-display font-bold text-white">Your data. Your permission. Your map.</p>
+        <p className="mb-3 text-white/70">You decide what MoneyMap can use.</p>
+        <Link to="/app/settings" className="font-semibold text-[#2ee6a8] hover:underline">Manage permissions →</Link>
       </div>
     </nav>
   );
@@ -122,7 +126,7 @@ export function AppShell() {
   if (!state.onboarded) return <Navigate to="/onboarding" replace state={{ from: location.pathname }} />;
   return (
     <div className="min-h-screen">
-      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-[10px] focus:bg-white focus:px-4 focus:py-2">Skip to content</a>
+      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-[10px] focus:bg-surface focus:px-4 focus:py-2">Skip to content</a>
       <TopNavigation />
       <div className="mx-auto flex max-w-7xl">
         <SideNavigation />

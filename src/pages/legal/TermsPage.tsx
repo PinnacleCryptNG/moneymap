@@ -5,9 +5,9 @@ export function TermsPage() {
     <PublicPage>
       <p className="eyebrow mb-2">Terms of use</p>
       <h1 className="mb-3">Using MoneyMap</h1>
-      <p className="mb-8 text-navy-500">Last updated 9 October 2026</p>
+      <p className="mb-8 text-ink-3">Last updated 9 October 2026</p>
 
-      <div className="mb-8 rounded-[16px] border border-mist bg-cloud p-4 text-small text-navy-700">
+      <div className="mb-8 rounded-[16px] border border-line bg-canvas p-4 text-small text-ink-2">
         This MoneyMap is a prototype built for the Zenith Bank Zecathon, running on synthetic customers. It is not a live banking service.
       </div>
 

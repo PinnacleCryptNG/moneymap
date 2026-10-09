@@ -16,8 +16,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-24 z-50 flex flex-col items-center gap-2 px-4 md:bottom-8">
         {items.map((t) => (
-          <div key={t.id} role="status" className="fade-up pointer-events-auto flex max-w-md items-center gap-2 rounded-[12px] bg-navy px-4 py-3 text-small text-white shadow-lg">
-            {t.tone === "success" ? <CheckCircle2 size={20} className="shrink-0 text-green" aria-hidden /> : <Info size={20} className="shrink-0 text-[#7fb2ff]" aria-hidden />}
+          <div key={t.id} role="status" className="fade-up pointer-events-auto flex max-w-md items-center gap-2 rounded-[14px] bg-night px-4 py-3 text-small text-white shadow-[0_18px_40px_-12px_rgb(0_0_0/0.5)] ring-1 ring-white/10">
+            {t.tone === "success" ? <CheckCircle2 size={20} className="shrink-0 text-green" aria-hidden /> : <Info size={20} className="shrink-0 text-mint" aria-hidden />}
             {t.message}
           </div>
         ))}

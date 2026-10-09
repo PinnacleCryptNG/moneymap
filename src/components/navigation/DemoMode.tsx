@@ -21,15 +21,15 @@ export function DemoPersonaList({ onDone }: { onDone?: () => void }) {
       {CUSTOMERS.map((c) => {
         const current = c.id === state.customerId && state.onboarded;
         return (
-          <li key={c.id} className={`rounded-[16px] border p-4 ${current ? "border-blue bg-blue-50/50" : "border-mist bg-white"}`}>
+          <li key={c.id} className={`rounded-[16px] border p-4 ${current ? "border-blue bg-blue-50/50" : "border-line bg-surface"}`}>
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-navy text-small font-semibold text-white" aria-hidden>{c.firstName[0]}</span>
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-night text-small font-semibold text-white" aria-hidden>{c.firstName[0]}</span>
               <span className="font-semibold">{c.firstName}, {c.age}</span>
-              <span className="text-small text-navy-500">· {c.persona}</span>
+              <span className="text-small text-ink-3">· {c.persona}</span>
               {current && <Badge tone="blue">Loaded</Badge>}
             </div>
-            <p className="mb-2 text-small text-navy-700">{c.occupation}, {c.city}. {c.story}</p>
-            <p className="mb-3 text-small"><span className="text-navy-500">Expected outcome: </span><span className="font-medium">{c.expectedOutcome}</span></p>
+            <p className="mb-2 text-small text-ink-2">{c.occupation}, {c.city}. {c.story}</p>
+            <p className="mb-3 text-small"><span className="text-ink-3">Expected outcome: </span><span className="font-medium">{c.expectedOutcome}</span></p>
             <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
@@ -69,9 +69,9 @@ function SimulateActivity({ onSimulate }: { onSimulate: (event: "income" | "wind
   if (!state.onboarded) return null;
   const income = customer.incomeSource === "allowance" ? "Allowance lands" : "Salary lands";
   return (
-    <div className="mb-4 rounded-[16px] border border-mist bg-cloud p-4">
+    <div className="mb-4 rounded-[16px] border border-line bg-canvas p-4">
       <p className="mb-1 font-semibold">Simulate account activity — {customer.firstName}</p>
-      <p className="mb-3 text-small text-navy-500">
+      <p className="mb-3 text-small text-ink-3">
         Money arrives on today's statement. MoneyMap takes a fresh look and decides whether it's worth a message.
       </p>
       <div className="flex flex-wrap gap-2">
@@ -103,15 +103,15 @@ export function DemoModeButton() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`fixed left-4 z-40 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-mist bg-white/95 px-3.5 text-small font-semibold text-navy-700 shadow-md backdrop-blur hover:bg-white ${
+        className={`glass fixed left-4 z-40 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line px-3.5 text-small font-semibold text-ink shadow-[var(--shadow-lift)] hover:border-mint ${
           inApp ? "bottom-20 md:bottom-5" : "bottom-5"
         }`}
         aria-label="Open Demo Mode"
       >
-        <MonitorPlay size={18} aria-hidden /> Demo
+        <MonitorPlay size={18} className="text-green-700" aria-hidden /> Demo
       </button>
       <BottomSheet open={open} onClose={() => setOpen(false)} title="Demo Mode">
-        <p className="mb-4 text-small text-navy-500">
+        <p className="mb-4 text-small text-ink-3">
           For the presenting team. Load a synthetic customer's full financial context instantly, so judges can see MoneyMap decide without waiting.
         </p>
         <div className="max-h-[60vh] overflow-y-auto pr-1">
@@ -124,7 +124,7 @@ export function DemoModeButton() {
           />
           <DemoPersonaList onDone={() => setOpen(false)} />
         </div>
-        <div className="mt-4 flex justify-between gap-3 border-t border-mist pt-4">
+        <div className="mt-4 flex justify-between gap-3 border-t border-line pt-4">
           <Button
             size="sm"
             variant="ghost"

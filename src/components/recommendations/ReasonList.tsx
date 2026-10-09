@@ -3,7 +3,7 @@ import { Check } from "lucide-react";
 export function ReasonList({ items, title = "Based on:" }: { items: string[]; title?: string }) {
   return (
     <div>
-      <p className="mb-2 text-small font-medium text-navy-500">{title}</p>
+      <p className="mb-2 text-small font-medium text-ink-3">{title}</p>
       <ul className="flex flex-col gap-2">
         {items.map((r) => (
           <li key={r} className="flex items-center gap-2">

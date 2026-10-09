@@ -48,7 +48,7 @@ export function MapPage() {
     <div className="flex flex-col gap-6">
       <PageHeader eyebrow="Your financial map" title="Where you are, and where you could go" body="What MoneyMap understands from the information you've allowed — the signals, the needs they point to, and how products were filtered." />
 
-      <section className="card p-4 md:p-6">
+      <section>
         <MapJourney
           now={ctx.surplus ? `${formatNaira(Math.max(0, ctx.surplus.average))} left each month` : "Not shared yet"}
           next={result.top?.product.name ?? "Nothing needed now"}
@@ -58,9 +58,9 @@ export function MapPage() {
       </section>
 
       {missing.length > 0 && (
-        <div className="flex flex-col gap-3 rounded-[16px] border border-mist bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="flex items-start gap-2 text-small text-navy-700">
-            <Lock size={18} className="mt-0.5 shrink-0 text-navy-500" aria-hidden />
+        <div className="flex flex-col gap-3 rounded-[16px] border border-line bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex items-start gap-2 text-small text-ink-2">
+            <Lock size={18} className="mt-0.5 shrink-0 text-ink-3" aria-hidden />
             Not shared: {missing.map((k) => PERMISSION_COPY[k].title).join(", ")}. MoneyMap isn't using these — that's your choice.
           </p>
           <ButtonLink to="/app/settings" size="sm" variant="secondary">Review permissions</ButtonLink>
@@ -74,7 +74,7 @@ export function MapPage() {
       <section aria-labelledby="signals-title">
         <h2 id="signals-title" className="mb-3">What your money is telling us</h2>
         {ctx.signals.length === 0 ? (
-          <p className="card p-5 text-navy-500">No signals yet — MoneyMap needs at least some permitted information to understand your patterns.</p>
+          <p className="card p-5 text-ink-3">No signals yet — MoneyMap needs at least some permitted information to understand your patterns.</p>
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {ctx.signals.map((s) => {
@@ -86,7 +86,7 @@ export function MapPage() {
                   tone={m.tone}
                   title={m.title}
                   body={s.evidence}
-                  meta={<span className="text-caption !font-normal text-navy-500">Source: {s.source === "self_reported" ? "What you told us" : PERMISSION_COPY[s.source].title} · confidence {Math.round(s.strength * 100)}%</span>}
+                  meta={<span className="text-caption !font-normal text-ink-3">Source: {s.source === "self_reported" ? "What you told us" : PERMISSION_COPY[s.source].title} · confidence {Math.round(s.strength * 100)}%</span>}
                 />
               );
             })}
@@ -96,21 +96,21 @@ export function MapPage() {
 
       <section aria-labelledby="needs-title" className="card p-5 md:p-6">
         <h2 id="needs-title" className="mb-1 !text-[20px]">Needs detected</h2>
-        <p className="mb-4 text-small text-navy-500">The need comes before the product.</p>
+        <p className="mb-4 text-small text-ink-3">The need comes before the product.</p>
         {needs.length === 0 ? (
-          <p className="text-navy-500">No strong financial need detected right now.</p>
+          <p className="text-ink-3">No strong financial need detected right now.</p>
         ) : (
           <ul className="flex flex-col gap-4">
             {needs.map((n) => (
               <li key={n.need}>
                 <div className="mb-1 flex items-center justify-between gap-3">
                   <span className="font-medium">{NEED_LABELS[n.need]}</span>
-                  <span className="text-small tabular-nums text-navy-500">{n.strength}/100</span>
+                  <span className="text-small tabular-nums text-ink-3">{n.strength}/100</span>
                 </div>
-                <div className="mb-1 h-2 overflow-hidden rounded-full bg-mist" role="img" aria-label={`Strength ${n.strength} out of 100`}>
+                <div className="mb-1 h-2 overflow-hidden rounded-full bg-line" role="img" aria-label={`Strength ${n.strength} out of 100`}>
                   <div className="h-full rounded-full bg-blue" style={{ width: `${n.strength}%` }} />
                 </div>
-                <p className="text-small text-navy-500">{n.reasons.join(" ")}</p>
+                <p className="text-small text-ink-3">{n.reasons.join(" ")}</p>
               </li>
             ))}
           </ul>
@@ -120,7 +120,7 @@ export function MapPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.2fr]">
         <section aria-labelledby="funnel-title" className="card p-5 md:p-6">
           <h2 id="funnel-title" className="mb-1 flex items-center gap-2 !text-[20px]"><Radar size={22} className="text-blue" aria-hidden /> How MoneyMap decided</h2>
-          <p className="mb-5 text-small text-navy-500">From you, to one recommendation — or none.</p>
+          <p className="mb-5 text-small text-ink-3">From you, to one recommendation — or none.</p>
           <EnginePipeline steps={result.trace} />
           <div className="mt-5 flex flex-wrap items-center gap-3">
             {result.top ? (
@@ -133,18 +133,18 @@ export function MapPage() {
 
         <section aria-labelledby="tx-title" className="card p-5 md:p-6">
           <h2 id="tx-title" className="mb-1 !text-[20px]">Recent account activity</h2>
-          <p className="mb-4 text-small text-navy-500">Visible only to you. Each line shows the bank's narration and the category MoneyMap read from it.</p>
+          <p className="mb-4 text-small text-ink-3">Visible only to you. Each line shows the bank's narration and the category MoneyMap read from it.</p>
           {ctx.activity ? (
-            <ul className="flex flex-col divide-y divide-mist">
+            <ul className="flex flex-col divide-y divide-line">
               {customer.transactions.map((t, i) => (
                 <li key={i} className="flex items-center gap-3 py-2.5">
-                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${t.direction === "in" ? "bg-green-50 text-green-700" : "bg-cloud text-navy-500"}`}>
+                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${t.direction === "in" ? "bg-green-50 text-green-700" : "bg-canvas text-ink-3"}`}>
                     {t.direction === "in" ? <ArrowDownLeft size={16} aria-label="Money in" /> : <ArrowUpRight size={16} aria-label="Money out" />}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-small font-medium">{t.description}</span>
-                    <span className="block truncate font-mono text-[11px] text-navy-500" title={t.narration}>{t.narration}</span>
-                    <span className="text-caption !font-normal text-navy-500">
+                    <span className="block truncate font-mono text-[11px] text-ink-3" title={t.narration}>{t.narration}</span>
+                    <span className="text-caption !font-normal text-ink-3">
                       {t.daysAgo === 0 ? "Today" : t.daysAgo === 1 ? "Yesterday" : `${t.daysAgo} days ago`} · {CATEGORY_LABELS[t.category]}
                     </span>
                   </span>
@@ -155,7 +155,7 @@ export function MapPage() {
               ))}
             </ul>
           ) : (
-            <p className="flex items-center gap-2 text-small text-navy-500"><Lock size={16} aria-hidden /> You haven't shared account activity.</p>
+            <p className="flex items-center gap-2 text-small text-ink-3"><Lock size={16} aria-hidden /> You haven't shared account activity.</p>
           )}
         </section>
       </div>

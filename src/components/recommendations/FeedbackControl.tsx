@@ -13,7 +13,7 @@ const ICONS = {
 export function FeedbackControl({ value, onSelect }: { value?: FeedbackType; onSelect: (f: FeedbackType) => void }) {
   return (
     <fieldset>
-      <legend className="mb-3 text-small font-medium text-navy-500">How did this recommendation land?</legend>
+      <legend className="mb-3 text-small font-medium text-ink-3">How did this recommendation land?</legend>
       <div className="flex flex-wrap gap-2">
         {(Object.keys(FEEDBACK_LABELS) as FeedbackType[]).map((k) => {
           const Icon = ICONS[k];
@@ -25,7 +25,7 @@ export function FeedbackControl({ value, onSelect }: { value?: FeedbackType; onS
               aria-pressed={active}
               onClick={() => onSelect(k)}
               className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-small font-medium transition-colors ${
-                active ? "border-blue bg-blue-50 text-blue-600" : "border-mist bg-white text-navy-700 hover:bg-cloud"
+                active ? "border-blue bg-blue-50 text-blue-600" : "border-line bg-surface text-ink-2 hover:bg-canvas"
               }`}
             >
               <Icon size={16} aria-hidden />

@@ -34,10 +34,10 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
     return (
       <div role="alert" className="mx-auto max-w-lg px-4 py-16 text-center">
         <h1 className="mb-3">We couldn't update your MoneyMap.</h1>
-        <p className="mb-6 text-navy-500">Something interrupted the app. Your existing information is safe.</p>
+        <p className="mb-6 text-ink-3">Something interrupted the app. Your existing information is safe.</p>
         <button
           type="button"
-          className="min-h-12 rounded-[10px] bg-blue px-5 font-semibold text-white"
+          className="min-h-12 rounded-[12px] bg-mint px-5 font-semibold text-night"
           onClick={() => {
             try {
               localStorage.removeItem(STORAGE_KEY);
@@ -49,7 +49,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
         >
           Start again
         </button>
-        <p className="mt-6 text-caption !font-normal text-navy-500">{this.state.error.message}</p>
+        <p className="mt-6 text-caption !font-normal text-ink-3">{this.state.error.message}</p>
       </div>
     );
   }

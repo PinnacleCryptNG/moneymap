@@ -25,7 +25,7 @@ export function MyMoneyPage() {
       />
       <MoneyQuestions draft={draft} onChange={setDraft} existingGoals={state.goals} />
       {errors.length > 0 && (
-        <ul role="alert" className="flex list-disc flex-col gap-1 rounded-[12px] border border-[#f4cccc] bg-red-50 p-4 pl-8 text-small text-red">
+        <ul role="alert" className="flex list-disc flex-col gap-1 rounded-[12px] border border-red/30 bg-red-50 p-4 pl-8 text-small text-red">
           {errors.map((e) => <li key={e}>{e}</li>)}
         </ul>
       )}

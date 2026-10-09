@@ -5,6 +5,7 @@ import { MapJourney } from "../../components/cards/MapJourney";
 import { GoalCard } from "../../components/goals/GoalCard";
 import { Badge } from "../../components/shared/Badge";
 import { ButtonLink } from "../../components/shared/Button";
+import { ScoreRing } from "../../components/shared/ScoreRing";
 import { EmptyState } from "../../components/shared/States";
 import { goalPlan } from "../../engine/plan";
 import { useEngineResult } from "../../services/recommendation";
@@ -27,18 +28,18 @@ export function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <p className="text-navy-500">{greeting()}, {customer.firstName}</p>
+      <header className="fade-up">
+        <p className="mb-1 font-medium text-ink-3">{greeting()}, {customer.firstName} 👋</p>
         <h1>Your MoneyMap</h1>
       </header>
 
       {message && (
-        <section aria-label="New message" className="fade-up flex flex-col gap-3 rounded-[16px] border border-blue bg-blue-50/60 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
+        <section aria-label="New message" className="fade-up flex flex-col gap-3 rounded-[20px] border border-blue/30 bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
           <div className="flex min-w-0 gap-3">
             <BellRing size={22} className="mt-0.5 shrink-0 text-blue-600" aria-hidden />
             <div className="min-w-0">
               <p className="font-semibold">{message.title}</p>
-              <p className="text-small text-navy-700">{message.body}</p>
+              <p className="text-small text-ink-2">{message.body}</p>
             </div>
           </div>
           <ButtonLink size="sm" to="/app/recommendation" className="shrink-0" onClick={() => dispatch({ type: "read_notification", id: message.id })}>
@@ -47,7 +48,7 @@ export function DashboardPage() {
         </section>
       )}
 
-      <section className="card p-4 md:p-6" aria-labelledby="journey-title">
+      <section aria-labelledby="journey-title">
         <h2 id="journey-title" className="sr-only">You are here, next move, your goal</h2>
         <MapJourney
           now={nowLabel}
@@ -60,14 +61,21 @@ export function DashboardPage() {
       <section aria-labelledby="next-title" className="fade-up">
         <p id="next-title" className="eyebrow mb-3 flex items-center gap-2"><Footprints size={14} aria-hidden /> Your next move</p>
         {result.status === "recommended" && result.top && result.explanation ? (
-          <div className="rounded-[24px] border border-mist bg-white p-6 md:p-8">
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <Badge tone="green" icon={<CheckCircle2 size={14} aria-hidden />}>Strong match</Badge>
-              <Badge>{result.top.score}% match</Badge>
+          <div className="card relative overflow-hidden p-6 md:p-8">
+            <span className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-mint to-blue" aria-hidden />
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <Badge tone="green" icon={<CheckCircle2 size={14} aria-hidden />}>Strong match</Badge>
+                  <Badge>{result.top.score}% match</Badge>
+                </div>
+                <h3 className="mb-2 !text-[26px] !font-extrabold">{result.top.product.name}</h3>
+                <p className="max-w-2xl text-ink-2">{result.explanation.whyItFits}</p>
+              </div>
+              <div className="sm:hidden"><ScoreRing value={result.top.score} size={60} /></div>
+              <div className="hidden sm:block"><ScoreRing value={result.top.score} size={84} /></div>
             </div>
-            <h3 className="mb-2 !text-[22px]">{result.top.product.name}</h3>
-            <p className="mb-6 max-w-2xl text-navy-700">{result.explanation.whyItFits}</p>
-            <div className="flex flex-wrap gap-3">
+            <div className="mt-6 flex flex-wrap gap-3">
               <ButtonLink to="/app/recommendation" iconRight={<ArrowRight size={20} aria-hidden />}>See why</ButtonLink>
               <ButtonLink to={`/app/products/${result.top.product.product_id}`} variant="secondary">View product</ButtonLink>
             </div>
@@ -76,14 +84,14 @@ export function DashboardPage() {
           <div className="card p-6 md:p-8">
             <div className="mb-2 flex items-center gap-2">
               {result.status === "paused" || result.status === "window_cap" ? (
-                <PauseCircle size={24} className="text-navy-500" aria-hidden />
+                <PauseCircle size={24} className="text-ink-3" aria-hidden />
               ) : (
                 <CheckCircle2 size={24} className="text-green-700" aria-hidden />
               )}
               <h3>Nothing needs your attention.</h3>
             </div>
-            <p className="mb-1 max-w-2xl text-navy-700">{result.message}</p>
-            <p className="mb-6 max-w-2xl text-navy-500">We'll let you know when something genuinely relevant comes up.</p>
+            <p className="mb-1 max-w-2xl text-ink-2">{result.message}</p>
+            <p className="mb-6 max-w-2xl text-ink-3">We'll let you know when something genuinely relevant comes up.</p>
             <div className="flex flex-wrap gap-3">
               <ButtonLink to="/app/map">See how MoneyMap decided</ButtonLink>
               <ButtonLink to="/app/products" variant="secondary">Explore products myself</ButtonLink>

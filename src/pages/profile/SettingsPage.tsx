@@ -60,17 +60,17 @@ export function SettingsPage() {
       <PageHeader eyebrow="Profile & settings" title="Your data. Your permission. Your map." body="You decide what MoneyMap can use to personalise your experience — and what kind of help you want." />
 
       <section className="card flex flex-wrap items-center gap-4 p-5 md:p-6">
-        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-navy text-[20px] font-semibold text-white" aria-hidden>{customer.firstName[0]}</span>
+        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-night text-[20px] font-semibold text-white" aria-hidden>{customer.firstName[0]}</span>
         <div className="flex-1">
           <p className="font-semibold">{customer.name}</p>
-          <p className="text-small text-navy-500">Demo customer · {customer.persona} · synthetic data</p>
+          <p className="text-small text-ink-3">Demo customer · {customer.persona} · synthetic data</p>
         </div>
         <ButtonLink to="/" variant="secondary" size="sm" icon={<UserRound size={18} aria-hidden />}>Switch demo customer</ButtonLink>
       </section>
 
       <section aria-labelledby="perm-title">
         <h2 id="perm-title" className="mb-1">Permissions</h2>
-        <p className="mb-4 text-navy-500">Changes apply immediately. Withdrawn data stops being used for personalisation straight away.</p>
+        <p className="mb-4 text-ink-3">Changes apply immediately. Withdrawn data stops being used for personalisation straight away.</p>
         <div className="flex flex-col gap-3">
           {PERMISSION_ORDER.map((k) => (
             <PermissionToggle
@@ -100,7 +100,7 @@ export function SettingsPage() {
 
       <section className="card p-5 md:p-6" aria-labelledby="rights-title">
         <h2 id="rights-title" className="mb-1 !text-[20px]">Your data rights</h2>
-        <p className="mb-4 text-small text-navy-500">
+        <p className="mb-4 text-small text-ink-3">
           Under the Nigeria Data Protection Act you can get a copy of the data MoneyMap holds about you, or ask for it to be erased. Your bank records stay with Zenith Bank.
         </p>
         <div className="flex flex-wrap gap-3">
@@ -111,23 +111,23 @@ export function SettingsPage() {
 
       <section className="card p-5 md:p-6" aria-labelledby="demo-title">
         <h2 id="demo-title" className="mb-1 !text-[20px]">Prototype controls</h2>
-        <p className="mb-4 text-small text-navy-500">For demonstrations only.</p>
+        <p className="mb-4 text-small text-ink-3">For demonstrations only.</p>
         <label className="mb-4 flex min-h-11 cursor-pointer items-center gap-3">
-          <input type="checkbox" className="h-5 w-5 accent-[#1677FF]" checked={state.simulateError} onChange={(e) => dispatch({ type: "set_simulate_error", value: e.target.checked })} />
+          <input type="checkbox" className="h-5 w-5 accent-green-700" checked={state.simulateError} onChange={(e) => dispatch({ type: "set_simulate_error", value: e.target.checked })} />
           <span>Simulate a connection error on the recommendation screen</span>
         </label>
         <Button variant="ghost" icon={<RotateCcw size={18} aria-hidden />} onClick={() => { dispatch({ type: "reset" }); navigate("/"); }}>Reset all demo data</Button>
       </section>
 
       <Modal open={confirmWithdraw} onClose={() => setConfirmWithdraw(false)} title="Withdraw all consent?">
-        <p className="mb-6 text-navy-700">MoneyMap will stop using all your banking information for personalisation. You'll still be able to explore products yourself, and you can allow access again any time.</p>
+        <p className="mb-6 text-ink-2">MoneyMap will stop using all your banking information for personalisation. You'll still be able to explore products yourself, and you can allow access again any time.</p>
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={() => setConfirmWithdraw(false)}>Cancel</Button>
           <Button variant="danger" onClick={() => { dispatch({ type: "withdraw_all" }); setConfirmWithdraw(false); toast("All consent withdrawn.", "info"); }}>Withdraw all</Button>
         </div>
       </Modal>
       <Modal open={confirmErase} onClose={() => setConfirmErase(false)} title="Delete your MoneyMap data?">
-        <p className="mb-6 text-navy-700">
+        <p className="mb-6 text-ink-2">
           This removes your permissions, goals, preferences, recommendations, feedback, messages and product requests from MoneyMap. It can't be undone. Your Zenith accounts and statements aren't affected.
         </p>
         <div className="flex justify-end gap-3">
